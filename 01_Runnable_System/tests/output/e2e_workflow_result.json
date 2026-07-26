@@ -1,0 +1,163 @@
+{
+  "generatedAt": "2026-07-24T10:05:23.670Z",
+  "overall": "PASS",
+  "summary": {
+    "pass": 21,
+    "fail": 0
+  },
+  "context": {
+    "targetId": "ceae2007-fff3-4e7e-adc4-e6797c5c5ea7",
+    "portfolioId": "f859b7de-4982-4d45-8587-7abdec5618e4",
+    "importCount": 3,
+    "auditCount": 23
+  },
+  "steps": [
+    {
+      "status": "PASS",
+      "name": "Login administrator",
+      "actor": "system_admin",
+      "detail": "session created",
+      "evidence": "8e60c2ae-2091-4c49-9798-770bfa499d5e"
+    },
+    {
+      "status": "PASS",
+      "name": "Login decision committee approver",
+      "actor": "will",
+      "detail": "session created",
+      "evidence": "da28c3b0-5e59-4f0c-ae81-be708ebfb107"
+    },
+    {
+      "status": "PASS",
+      "name": "Login execution team approver",
+      "actor": "will1976",
+      "detail": "session created",
+      "evidence": "5f2bff31-0c17-4312-aed1-3960a9d7d9ca"
+    },
+    {
+      "status": "PASS",
+      "name": "Restore saved backend session",
+      "actor": "will",
+      "detail": "session restored",
+      "evidence": "Decision Committee"
+    },
+    {
+      "status": "PASS",
+      "name": "Create read-only reviewer",
+      "actor": "system_admin",
+      "detail": "viewer user created",
+      "evidence": "d687cf99-937f-46ab-8849-8750e0bfcf5e"
+    },
+    {
+      "status": "PASS",
+      "name": "Block viewer from target submission",
+      "actor": "Business Reviewer",
+      "detail": "blocked as expected",
+      "evidence": "Permission denied: Create target package requires decision"
+    },
+    {
+      "status": "PASS",
+      "name": "Submit target package",
+      "actor": "will",
+      "detail": "target package submitted",
+      "evidence": "ceae2007-fff3-4e7e-adc4-e6797c5c5ea7"
+    },
+    {
+      "status": "PASS",
+      "name": "Approve target package",
+      "actor": "will",
+      "detail": "one approval complete",
+      "evidence": "Approved"
+    },
+    {
+      "status": "PASS",
+      "name": "Block execution team from committee approval",
+      "actor": "will1976",
+      "detail": "blocked as expected",
+      "evidence": "Permission denied: Approve target package requires decision"
+    },
+    {
+      "status": "PASS",
+      "name": "Submit optimized portfolio",
+      "actor": "will1976",
+      "detail": "portfolio submitted",
+      "evidence": "f859b7de-4982-4d45-8587-7abdec5618e4"
+    },
+    {
+      "status": "PASS",
+      "name": "Approve portfolio",
+      "actor": "will",
+      "detail": "one approval complete",
+      "evidence": "Approved"
+    },
+    {
+      "status": "PASS",
+      "name": "Load actual holdings",
+      "actor": "will1976",
+      "detail": "holdings load recorded",
+      "evidence": "20 rows"
+    },
+    {
+      "status": "PASS",
+      "name": "Load actual trades",
+      "actor": "will1976",
+      "detail": "trades load recorded",
+      "evidence": "1 rows"
+    },
+    {
+      "status": "PASS",
+      "name": "Load cash flows",
+      "actor": "will1976",
+      "detail": "cash-flow load recorded",
+      "evidence": "2 rows"
+    },
+    {
+      "status": "PASS",
+      "name": "Pull audit log",
+      "actor": "will",
+      "detail": "audit log returned",
+      "evidence": "23 records"
+    },
+    {
+      "status": "PASS",
+      "name": "Audit includes blocked action",
+      "actor": "will",
+      "detail": "blocked action preserved",
+      "evidence": "Blocked result found"
+    },
+    {
+      "status": "PASS",
+      "name": "Audit includes portfolio approval",
+      "actor": "will",
+      "detail": "portfolio approval preserved",
+      "evidence": "Portfolio approval recorded"
+    },
+    {
+      "status": "PASS",
+      "name": "Persist approved target package",
+      "actor": "System",
+      "detail": "target package persisted",
+      "evidence": "ceae2007-fff3-4e7e-adc4-e6797c5c5ea7"
+    },
+    {
+      "status": "PASS",
+      "name": "Persist approved portfolio",
+      "actor": "System",
+      "detail": "portfolio persisted",
+      "evidence": "f859b7de-4982-4d45-8587-7abdec5618e4"
+    },
+    {
+      "status": "PASS",
+      "name": "Persist data load history",
+      "actor": "System",
+      "detail": "three data loads persisted",
+      "evidence": "3 data loads"
+    },
+    {
+      "status": "PASS",
+      "name": "Persist data load registry hashes",
+      "actor": "System",
+      "detail": "hashes persisted",
+      "evidence": "all data loads hashed"
+    }
+  ]
+}

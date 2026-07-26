@@ -1,0 +1,140 @@
+{
+  "version": "2026-07-24.1",
+  "updatedAt": "2026-07-24T00:00:00.000Z",
+  "purpose": "Source registry for annual public-data preparation, CPI target references, market prices, risk-free rates, and manual fallback controls.",
+  "defaultRefreshPolicy": {
+    "annualReferencePackage": "Run once at the start of the investment year, then refresh only if the committee requests a new approved package.",
+    "dailyHoldings": "Import daily actual holdings from the broker or custodian export format.",
+    "monthlyRebalanceCheck": "Run monthly; do not trigger trade workflow between monthly checks unless the policy is changed by the administrator."
+  },
+  "sources": [
+    {
+      "id": "eodhd-eod-adjusted-close",
+      "name": "EODHD end-of-day adjusted close",
+      "sourceType": "personal_market_price_api",
+      "status": "active_personal_test",
+      "priority": 5,
+      "usedFor": [
+        "daily end-of-day price refresh for prioritized tickers",
+        "benchmark and ticker historical prices",
+        "beta backtest",
+        "portfolio optimization"
+      ],
+      "endpoint": "https://eodhd.com/api/eod/",
+      "configuredIn": "scripts/public_data_engine.mjs and local EODHD_API_TOKEN environment variable",
+      "systemOutput": [
+        "data/public_data_engine_output/auto_historical_prices.csv",
+        "data/public_data_engine_output/auto_market_statistics.csv",
+        "data/public_data_engine_output/public_data_engine_manifest.json"
+      ],
+      "refreshCadence": "manual or scheduled end-of-day refresh within the configured per-run call budget",
+      "manualFallback": "Retain the existing cached history and use the Yahoo public fallback when the personal quota, symbol entitlement, or history range is insufficient.",
+      "productionNote": "The personal/free interface is for controlled testing only. Confirm commercial licensing, redistribution, call limits, and production entitlements directly with EODHD before organizational use."
+    },
+    {
+      "id": "yahoo-chart-adjusted-close",
+      "name": "Yahoo Finance public chart adjusted close",
+      "sourceType": "public_market_price",
+      "status": "active_public_fallback",
+      "priority": 10,
+      "usedFor": [
+        "annual asset-class allocation recommendation",
+        "equity sleeve weight recommendation",
+        "benchmark and ticker historical prices",
+        "beta backtest",
+        "portfolio optimization"
+      ],
+      "endpoint": "https://query1.finance.yahoo.com/v8/finance/chart/",
+      "configuredIn": "scripts/public_data_engine.mjs",
+      "systemOutput": [
+        "data/public_data_engine_output/auto_historical_prices.csv",
+        "data/public_data_engine_output/auto_ticker_universe.csv",
+        "data/public_data_engine_output/auto_market_statistics.csv",
+        "data/public_data_engine_output/public_data_engine_manifest.json"
+      ],
+      "refreshCadence": "annual package run with seven-day incremental cache refresh",
+      "manualFallback": "Upload administrator-approved market statistics CSV if the public endpoint is unavailable.",
+      "productionNote": "Public free data is suitable for prototype validation but should be replaced or licensed before production reliance."
+    },
+    {
+      "id": "philadelphia-fed-spf-cpi",
+      "name": "Philadelphia Fed Survey of Professional Forecasters CPI",
+      "sourceType": "public_cpi_reference",
+      "status": "active_reference_link",
+      "priority": 20,
+      "usedFor": [
+        "12-month CPI reference link",
+        "manual CPI source review"
+      ],
+      "endpoint": "https://www.philadelphiafed.org/surveys-and-data/cpi-spf",
+      "configuredIn": "server/core.mjs systemConfig.publicCpiSources",
+      "refreshCadence": "annual target-return cycle",
+      "manualFallback": "Decision Committee enters the numeric CPI value after reviewing the source."
+    },
+    {
+      "id": "cleveland-fed-inflation-nowcasting",
+      "name": "Cleveland Fed Inflation Nowcasting",
+      "sourceType": "public_cpi_reference",
+      "status": "active_reference_link",
+      "priority": 30,
+      "usedFor": [
+        "12-month CPI reference link",
+        "manual CPI source review"
+      ],
+      "endpoint": "https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting",
+      "configuredIn": "server/core.mjs systemConfig.publicCpiSources",
+      "refreshCadence": "annual target-return cycle",
+      "manualFallback": "Decision Committee enters the numeric CPI value after reviewing the source."
+    },
+    {
+      "id": "bls-cpi-public-api",
+      "name": "BLS CPI public API",
+      "sourceType": "public_cpi_history",
+      "status": "active_reference_link",
+      "priority": 40,
+      "usedFor": [
+        "CPI history reference",
+        "target-return evidence"
+      ],
+      "endpoint": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+      "configuredIn": "server/server.mjs targetSourceUrls",
+      "refreshCadence": "annual target-return cycle",
+      "manualFallback": "Decision Committee enters the forward CPI estimate if forward machine-readable data is not available."
+    },
+    {
+      "id": "administrator-manual-market-data",
+      "name": "Administrator-approved manual market data package",
+      "sourceType": "manual_fallback",
+      "status": "active_fallback",
+      "priority": 90,
+      "usedFor": [
+        "market statistics fallback",
+        "ticker universe fallback",
+        "non-equity NAV entry",
+        "administrator policy parameters"
+      ],
+      "endpoint": "local CSV or system form",
+      "configuredIn": "application upload forms and system parameter maintenance",
+      "refreshCadence": "only when public data is unavailable or the administrator approves a policy update",
+      "manualFallback": "This is the fallback source; every submitted file must keep import hash, user, timestamp, and version."
+    },
+    {
+      "id": "future-institutional-market-data-vendor",
+      "name": "Institution-approved paid market-data vendor",
+      "sourceType": "commercial_market_data",
+      "status": "planned_interface",
+      "priority": 5,
+      "usedFor": [
+        "production market prices",
+        "production benchmarks",
+        "corporate actions",
+        "licensed historical data"
+      ],
+      "endpoint": "to be selected by the institution",
+      "configuredIn": "future data adapter",
+      "refreshCadence": "daily for price data and annual for reference package approval",
+      "manualFallback": "Use the administrator-approved CSV interface until a paid vendor is selected.",
+      "productionNote": "Pricing, license scope, and redistribution rights must be confirmed directly with the vendor before production use."
+    }
+  ]
+}

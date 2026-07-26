@@ -1,0 +1,544 @@
+{
+  "meta": {
+    "schemaVersion": 4,
+    "createdAt": "2026-07-24T10:05:24.985Z",
+    "updatedAt": "2026-07-24T10:05:25.150Z"
+  },
+  "users": [
+    {
+      "id": "admin-1",
+      "name": "system_admin",
+      "group": "System Administrator",
+      "role": "User Admin",
+      "active": true,
+      "passwordHash": "acc505a1a9d9d3cfd7a9f2cc7237dc77a25aafc74502bcef541a79b3192e9fb3",
+      "passwordUpdatedAt": "2026-07-24T10:05:24.985Z"
+    },
+    {
+      "id": "committee-1",
+      "name": "will",
+      "group": "Decision Committee",
+      "role": "Decision Approver",
+      "active": true,
+      "passwordHash": "9a927a57a37a091e7e012f4ab2e2f2a8d33b35d69b107592fd2c1682e7947689",
+      "passwordUpdatedAt": "2026-07-24T10:05:24.985Z"
+    },
+    {
+      "id": "execution-1",
+      "name": "will1976",
+      "group": "Execution Team",
+      "role": "Execution Approver",
+      "active": true,
+      "passwordHash": "7eba83d2632b4787556c09c50430d5d737cf5c80960027b287ee40e64a497a1e",
+      "passwordUpdatedAt": "2026-07-24T10:05:24.985Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "99d4718e-9b6f-41fa-9c57-435b73ad6b45",
+      "userId": "admin-1",
+      "createdAt": "2026-07-24T10:05:24.987Z",
+      "active": true
+    },
+    {
+      "id": "c9e8de55-0eaf-4ba8-97f7-e338230968d6",
+      "userId": "committee-1",
+      "createdAt": "2026-07-24T10:05:25.017Z",
+      "active": true
+    },
+    {
+      "id": "3f60f95e-3c06-4810-95be-d8ac1e897d5b",
+      "userId": "execution-1",
+      "createdAt": "2026-07-24T10:05:25.033Z",
+      "active": true
+    }
+  ],
+  "targetPackages": [
+    {
+      "id": "9e347dd2-e17c-4770-98dd-40ee4603af3e",
+      "status": "Approved",
+      "version": 1,
+      "createdAt": "2026-07-24T10:05:25.050Z",
+      "createdBy": "committee-1",
+      "scenario": "Balanced",
+      "finalTargetReturn": 6.83,
+      "operatingCost": 3,
+      "cpiEstimate": 2.7,
+      "approvedAt": "2026-07-24T10:05:25.068Z"
+    }
+  ],
+  "portfolios": [
+    {
+      "id": "c6fb4b57-c43e-49e6-bc7e-5bc5a266b4fd",
+      "status": "Approved",
+      "version": 1,
+      "createdAt": "2026-07-24T10:05:25.084Z",
+      "createdBy": "execution-1",
+      "targetPackageId": "9e347dd2-e17c-4770-98dd-40ee4603af3e",
+      "benchmark": "Blended equity sleeve benchmark",
+      "holdings": [
+        {
+          "ticker": "VTI",
+          "sleeve": "us",
+          "weight": 35
+        },
+        {
+          "ticker": "EWJ",
+          "sleeve": "developed",
+          "weight": 25
+        },
+        {
+          "ticker": "2800.HK",
+          "sleeve": "emerging",
+          "weight": 20
+        },
+        {
+          "ticker": "ASHR",
+          "sleeve": "emerging",
+          "weight": 20
+        }
+      ],
+      "approvedAt": "2026-07-24T10:05:25.100Z"
+    }
+  ],
+  "nonEquityNavPackages": [],
+  "tradeAuthorizationPackages": [],
+  "reportDistributions": [],
+  "approvals": [
+    {
+      "id": "3fc65c41-5b5d-4403-a1f9-e961efa348ef",
+      "type": "Target Package",
+      "targetId": "9e347dd2-e17c-4770-98dd-40ee4603af3e",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "decision": "Approve",
+      "note": "",
+      "createdAt": "2026-07-24T10:05:25.068Z"
+    },
+    {
+      "id": "a3864cf3-bc35-44d7-96d6-9f7a73391c81",
+      "type": "Portfolio",
+      "targetId": "c6fb4b57-c43e-49e6-bc7e-5bc5a266b4fd",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "decision": "Approve",
+      "note": "",
+      "createdAt": "2026-07-24T10:05:25.100Z"
+    }
+  ],
+  "imports": [
+    {
+      "id": "6a14ca8f-0696-4140-95c8-8dd532be2544",
+      "batchId": "DL-20260724100525-001",
+      "type": "actual_holdings",
+      "fileName": "daily_holdings.csv",
+      "rows": 2,
+      "status": "Stored",
+      "byteLength": 35,
+      "contentHash": "169622ff1898f0abc1354403f14e613bd89dc392744e7bd6f9e0d0f7f7eafc39",
+      "loadedAt": "2026-07-24T10:05:25.117Z",
+      "loadedBy": "execution-1",
+      "importedAt": "2026-07-24T10:05:25.117Z",
+      "importedBy": "execution-1",
+      "rawText": "Ticker,MarketValue\nVTI,100\nEWJ,100\n"
+    }
+  ],
+  "publicDataCache": {
+    "latest": {
+      "id": "ad06f4f7-0577-45d7-8473-90b01c380ff9",
+      "recordedAt": "2026-07-24T10:05:25.134Z",
+      "recordedBy": "committee-1",
+      "generatedAt": "2026-07-22T00:00:00.000Z",
+      "sourceName": "Yahoo Finance public chart adjusted close",
+      "sourceUrl": "https://query1.finance.yahoo.com/v8/finance/chart/",
+      "startDate": "2016-01-01",
+      "endDate": "2026-07-22",
+      "cache": {
+        "incrementalTickers": 4,
+        "fullHistoryTickers": 1
+      },
+      "outputs": {},
+      "dataSets": {
+        "historicalPrices": {
+          "fileName": "auto_historical_prices.csv",
+          "rows": 2,
+          "byteLength": 24,
+          "contentHash": "def824b4af72bef1618360da9ed67664aa385f7a69120acb7e1532016a182b93",
+          "rawText": "Date,VTI\n2026-07-22,100\n"
+        },
+        "tickerUniverse": {
+          "fileName": "auto_ticker_universe.csv",
+          "rows": 1,
+          "byteLength": 48,
+          "contentHash": "3d4929bfc6df01ecfcc7a669da7ee024d303bd75c0b2dd7c5c01abb61ea4b08d",
+          "rawText": "Ticker,Name\nVTI,Vanguard Total Stock Market ETF\n"
+        }
+      }
+    },
+    "refreshHistory": [
+      {
+        "id": "ad06f4f7-0577-45d7-8473-90b01c380ff9",
+        "recordedAt": "2026-07-24T10:05:25.134Z",
+        "recordedBy": "committee-1",
+        "generatedAt": "2026-07-22T00:00:00.000Z",
+        "sourceName": "Yahoo Finance public chart adjusted close",
+        "sourceUrl": "https://query1.finance.yahoo.com/v8/finance/chart/",
+        "startDate": "2016-01-01",
+        "endDate": "2026-07-22",
+        "cache": {
+          "incrementalTickers": 4,
+          "fullHistoryTickers": 1
+        },
+        "outputs": {},
+        "dataSets": {
+          "historicalPrices": {
+            "fileName": "auto_historical_prices.csv",
+            "rows": 2,
+            "byteLength": 24,
+            "contentHash": "def824b4af72bef1618360da9ed67664aa385f7a69120acb7e1532016a182b93"
+          },
+          "tickerUniverse": {
+            "fileName": "auto_ticker_universe.csv",
+            "rows": 1,
+            "byteLength": 48,
+            "contentHash": "3d4929bfc6df01ecfcc7a669da7ee024d303bd75c0b2dd7c5c01abb61ea4b08d"
+          }
+        }
+      }
+    ]
+  },
+  "auditLog": [
+    {
+      "id": "81cd2c71-72ce-42a7-8db5-ddd23f609fbf",
+      "time": "2026-07-24T10:05:24.987Z",
+      "actorId": "admin-1",
+      "actorName": "system_admin",
+      "actorGroup": "System Administrator",
+      "action": "Login",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "af4e09ca-2bfc-42ad-8004-54610da850dc",
+      "time": "2026-07-24T10:05:25.017Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Login",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "7fbb7ad7-155a-4a59-b2fd-68669265446c",
+      "time": "2026-07-24T10:05:25.033Z",
+      "actorId": "execution-1",
+      "actorName": "will1976",
+      "actorGroup": "Execution Team",
+      "action": "Login",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "c9377a63-7c58-4de3-bd3a-d494df9cc44a",
+      "time": "2026-07-24T10:05:25.050Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Create target package",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "2e641eb3-a8d1-4f0a-9e7b-6691a7218f4b",
+      "time": "2026-07-24T10:05:25.050Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Target package submitted",
+      "result": "Allowed",
+      "detail": "v1"
+    },
+    {
+      "id": "20a71986-2639-48ce-bd7f-9627ace658d6",
+      "time": "2026-07-24T10:05:25.067Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Approve target package",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "e7a08d25-0cec-4011-a793-20d844a14c10",
+      "time": "2026-07-24T10:05:25.068Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Target package approval recorded",
+      "result": "Allowed",
+      "detail": "Approve: "
+    },
+    {
+      "id": "55d35852-1a64-4116-877f-c6414eca79ee",
+      "time": "2026-07-24T10:05:25.084Z",
+      "actorId": "execution-1",
+      "actorName": "will1976",
+      "actorGroup": "Execution Team",
+      "action": "Submit portfolio",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "7578eab4-2adb-4b6e-a19b-b24b6ef9c7fc",
+      "time": "2026-07-24T10:05:25.084Z",
+      "actorId": "execution-1",
+      "actorName": "will1976",
+      "actorGroup": "Execution Team",
+      "action": "Portfolio submitted",
+      "result": "Allowed",
+      "detail": "v1"
+    },
+    {
+      "id": "4b614966-15d5-40b7-a411-a11a778ebd79",
+      "time": "2026-07-24T10:05:25.100Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Approve portfolio",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "c6689eb1-df5f-45d7-8ac9-1fa2bf384ac6",
+      "time": "2026-07-24T10:05:25.100Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Portfolio approval recorded",
+      "result": "Allowed",
+      "detail": "Approve: "
+    },
+    {
+      "id": "b187121e-e9b1-4828-96fa-396b9ff76c66",
+      "time": "2026-07-24T10:05:25.116Z",
+      "actorId": "execution-1",
+      "actorName": "will1976",
+      "actorGroup": "Execution Team",
+      "action": "Load actual_holdings",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "b8fbc1b6-bc38-4e1a-b841-32cf16484e4f",
+      "time": "2026-07-24T10:05:25.117Z",
+      "actorId": "execution-1",
+      "actorName": "will1976",
+      "actorGroup": "Execution Team",
+      "action": "Data loaded",
+      "result": "Allowed",
+      "detail": "actual_holdings: daily_holdings.csv, 2 row(s)"
+    },
+    {
+      "id": "ea9dfa1a-d71c-44d2-9c9e-a3cac3e48743",
+      "time": "2026-07-24T10:05:25.134Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Record annual public data cache",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "df833387-e355-4751-88d4-4f382fdeb68d",
+      "time": "2026-07-24T10:05:25.134Z",
+      "actorId": "committee-1",
+      "actorName": "will",
+      "actorGroup": "Decision Committee",
+      "action": "Annual public data cache recorded",
+      "result": "Allowed",
+      "detail": "2026-07-22: 4 incremental ticker(s)"
+    },
+    {
+      "id": "cc248419-4a59-4b76-91ea-43939112e909",
+      "time": "2026-07-24T10:05:25.150Z",
+      "actorId": "admin-1",
+      "actorName": "system_admin",
+      "actorGroup": "System Administrator",
+      "action": "Update system configuration",
+      "result": "Allowed",
+      "detail": ""
+    },
+    {
+      "id": "af6349a5-4f19-4770-b9dc-76cc99cef24c",
+      "time": "2026-07-24T10:05:25.150Z",
+      "actorId": "admin-1",
+      "actorName": "system_admin",
+      "actorGroup": "System Administrator",
+      "action": "System configuration updated",
+      "result": "Allowed",
+      "detail": "3 CPI source(s) configured"
+    }
+  ],
+  "systemConfig": {
+    "maintenance": {
+      "version": 0,
+      "lastMaintainedAt": "",
+      "lastMaintainedBy": ""
+    },
+    "publicCpiSources": [
+      {
+        "priority": 1,
+        "name": "Philadelphia Fed SPF CPI forecast",
+        "institution": "Federal Reserve Bank of Philadelphia",
+        "url": "https://www.philadelphiafed.org/surveys-and-data/cpi-spf",
+        "category": "Official survey forecast",
+        "kind": "forecast-page",
+        "active": true,
+        "note": "Widely used Survey of Professional Forecasters reference. Committee reviews the relevant CPI mean or median response before entering the numeric value."
+      },
+      {
+        "priority": 2,
+        "name": "Cleveland Fed Inflation Nowcasting",
+        "institution": "Federal Reserve Bank of Cleveland",
+        "url": "https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting",
+        "category": "Official nowcast",
+        "kind": "nowcast-page",
+        "active": true,
+        "note": "Official Federal Reserve Bank nowcast reference. Committee reviews whether the nowcast is appropriate as a CPI input."
+      },
+      {
+        "priority": 3,
+        "name": "BLS CPI-U latest 12-month change reference",
+        "institution": "U.S. Bureau of Labor Statistics",
+        "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+        "documentationUrl": "https://www.bls.gov/developers/api_signature_v2.htm",
+        "category": "Official historical reference",
+        "kind": "historical-cpi-api",
+        "active": true,
+        "note": "Official CPI history. This is historical context rather than a forward forecast unless the committee explicitly includes it."
+      }
+    ],
+    "businessParameters": {
+      "scenarioBands": {
+        "bull": {
+          "low": 5,
+          "high": 12
+        },
+        "balanced": {
+          "low": -2,
+          "high": 2
+        },
+        "bear": {
+          "low": -12,
+          "high": -3
+        }
+      },
+      "equityReturnAllocationMethod": "baselineGap",
+      "allocationDefaults": {
+        "bull": {
+          "assets": {
+            "equity": {
+              "weight": 68
+            },
+            "bond": {
+              "weight": 16
+            },
+            "alternative": {
+              "weight": 11
+            },
+            "cash": {
+              "weight": 5
+            }
+          },
+          "regions": {
+            "us": {
+              "share": 60
+            },
+            "developed": {
+              "share": 15
+            },
+            "emerging": {
+              "share": 25
+            }
+          }
+        },
+        "balanced": {
+          "assets": {
+            "equity": {
+              "weight": 55
+            },
+            "bond": {
+              "weight": 25
+            },
+            "alternative": {
+              "weight": 12
+            },
+            "cash": {
+              "weight": 8
+            }
+          },
+          "regions": {
+            "us": {
+              "share": 60
+            },
+            "developed": {
+              "share": 15
+            },
+            "emerging": {
+              "share": 25
+            }
+          }
+        },
+        "bear": {
+          "assets": {
+            "equity": {
+              "weight": 35
+            },
+            "bond": {
+              "weight": 42
+            },
+            "alternative": {
+              "weight": 10
+            },
+            "cash": {
+              "weight": 13
+            }
+          },
+          "regions": {
+            "us": {
+              "share": 65
+            },
+            "developed": {
+              "share": 15
+            },
+            "emerging": {
+              "share": 20
+            }
+          }
+        }
+      },
+      "drawdownRatioLow": 0.6,
+      "drawdownRatioHigh": 0.8,
+      "betaRelativeTolerance": 0.05,
+      "returnShortfallTolerance": 0.05,
+      "returnExcessReviewTolerance": 0.5,
+      "drawdownExcessTolerance": 0.1,
+      "maxSingleSecurityWeight": 35,
+      "styleTickerMin": 2,
+      "styleTickerMax": 5,
+      "rebalanceLowerDrift": -20,
+      "rebalanceUpperDrift": 20,
+      "rebalanceCompletionDays": 3,
+      "executionQuantityTolerance": 0.01,
+      "executionValueTolerance": 0.02,
+      "executionWeightTolerancePp": 0.5,
+      "testDateOverride": "",
+      "riskFreeRates": {
+        "us": 4.5,
+        "developed": 0.5,
+        "hongkong": 4.2,
+        "chinaa": 1.8
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+Time,Actor,Group,Action,Result
+2026-06-21,System Administrator,System Administrator,Create active users and assign roles,Allowed
+2026-06-21,Observer Guest,Viewer,Attempt to edit proposed portfolio,Blocked
+2026-06-21,Portfolio Analyst Liu,Execution Team,Load ticker universe and price data,Allowed
+2026-06-21,Decision Committee Approver,Decision Committee,Approve annual target return,Allowed
+2026-06-21,Portfolio Analyst Liu,Execution Team,Run Public Data Engine and load generated reference CSV files,Allowed
+2026-06-21,Decision Committee Approver,Decision Committee,Approve sleeve allocation, CAPM target beta, and drawdown budget,Allowed
+2026-06-21,Execution Manager Wang,Execution Team,Submit proposed portfolio v1,Allowed
+2026-06-21,Portfolio Analyst Liu,Execution Team,Generate three sleeve-by-sleeve optimization options and select the passing option,Allowed
+2026-06-21,Execution Manager Wang,Execution Team,Submit optimized portfolio v2 for committee approval,Allowed
+2026-06-21,Decision Committee Approver,Decision Committee,Record implementation decision: Approve,Allowed
+2026-06-21,Execution Team Approver,Execution Team,Approve Sell NVDA,Allowed
+2026-06-21,Execution Team Approver,Execution Team,Approve Buy 0700.HK,Allowed
+2026-06-21,Execution Manager Wang,Execution Team,Import actual holdings from broker consolidation sheet,Allowed
+2026-06-21,Compliance Sun,Compliance,Review rebalance alerts and escalation,Allowed
+2026-06-21,Compliance Sun,Compliance,Generate weekly performance and risk report,Allowed

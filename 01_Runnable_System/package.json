@@ -1,0 +1,21 @@
+{
+  "name": "puyan-capital-control-center",
+  "version": "0.2.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.mjs",
+    "data:public": "node scripts/public_data_engine.mjs",
+    "test": "node tests/run_all_tests.mjs",
+    "self-check": "node tests/self_check.mjs",
+    "test:workflow": "node tests/run_acceptance_tests.mjs",
+    "test:ui-static": "node tests/run_static_ui_checks.mjs",
+    "test:backend": "node tests/run_backend_checks.mjs",
+    "test:e2e": "node tests/run_e2e_workflow_checks.mjs",
+    "test:data-public": "node tests/run_public_data_engine_checks.mjs",
+    "test:data-sources": "node tests/run_market_data_source_registry_checks.mjs",
+    "test:sqlite-live": "node --no-warnings tests/run_sqlite_live_store_checks.mjs",
+    "test:sqlite": "node --no-warnings tests/run_sqlite_snapshot_checks.mjs",
+    "data:sqlite": "node --no-warnings scripts/export_sqlite_snapshot.mjs"
+  }
+}

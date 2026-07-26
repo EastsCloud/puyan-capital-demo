@@ -1,0 +1,3 @@
+Action,Ticker,CurrentWeight,TargetWeight,Drift,Quantity,Price,Value,Approver,Status
+Sell,NVDA,6.40%,4.00%,-2.40%,24000.00,1.00,24000,Execution Team,Approve
+Buy,0700.HK,-1.05%,1.25%,2.30%,52.92,434.60,23000,Execution Team,Approve

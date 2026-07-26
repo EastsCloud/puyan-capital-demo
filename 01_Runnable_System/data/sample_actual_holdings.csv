@@ -1,0 +1,5 @@
+Ticker,Name,Quantity,MarketValue,Weight
+VTI,Vanguard Total Stock Market ETF,120,36000,36
+NVDA,NVIDIA Corporation,80,12000,12
+BIL,SPDR Bloomberg 1-3 Month T-Bill ETF,250,25000,25
+CASH,Cash Position,1,27000,27

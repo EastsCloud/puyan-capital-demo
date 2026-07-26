@@ -1,0 +1,9 @@
+Name,Group,Role,Active
+System Administrator,System Administrator,User Admin,Yes
+Decision Committee Approver,Decision Committee,Decision Approver,Yes
+Execution Team Approver,Execution Team,Execution Approver,Yes
+Execution Manager Wang,Execution Team,Execution Manager,Yes
+Portfolio Analyst Liu,Execution Team,Portfolio Analyst,Yes
+Trader Zhao,Execution Team,Trader,Yes
+Compliance Sun,Compliance,Compliance Reviewer,Yes
+Observer Guest,Viewer,Read Only,Yes
