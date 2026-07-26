@@ -16,7 +16,7 @@ The reporting screen provides an investment-committee presentation layer with re
 
 ## EODHD Personal Paid Connection
 
-Copy `.env.example` to `.env`, set `EODHD_API_TOKEN`, and keep `PUBLIC_DATA_PROVIDER=eodhd`. The token is read only by the local data engine and is excluded by `.gitignore`. The packaged configuration targets the EOD Historical Data paid personal plan: it requests the full configured history and does not impose an additional per-run call limit. EODHD account quotas and symbol entitlements still apply, and Yahoo remains an availability fallback. Do not commit or distribute `.env`.
+Copy `.env.example` to `.env`, set `EODHD_API_TOKEN`, and keep `PUBLIC_DATA_PROVIDER=eodhd`. The token is read only by the local data engine and is excluded by `.gitignore`. The packaged configuration targets the EOD Historical Data paid personal plan: it requests the full configured history and does not impose an additional per-run call limit. EODHD-supported securities never silently switch to another provider; the last successful cache is retained if a request fails. Yahoo is retained only for the exact Tokyo-listed securities because the subscribed EODHD account does not expose the Tokyo exchange. Do not commit or distribute `.env`.
 
 ## Test
 

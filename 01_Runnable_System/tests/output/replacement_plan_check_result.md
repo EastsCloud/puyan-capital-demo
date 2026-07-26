@@ -14,5 +14,5 @@
 | PASS | Ticker universe includes 6920.T | replacement candidate available |
 | PASS | Ticker universe includes 9988.HK | replacement candidate available |
 | PASS | Ticker universe includes 002594.SZ | replacement candidate available |
-| PASS | Baseline Japan sleeve needs adjustment | baseline beta 1.226 |
+| PASS | Baseline Japan sleeve needs adjustment | baseline beta 1.227 |
 | PASS | One-ticker Japan replacement can meet sleeve beta tolerance | replacement beta 1.350 versus target 1.35 |

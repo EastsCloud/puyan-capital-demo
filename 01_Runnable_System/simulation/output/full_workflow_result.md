@@ -1,6 +1,6 @@
 # Full Workflow Simulation
 
-Generated at: 2026-07-24T10:05:22.489Z
+Generated at: 2026-07-26T09:04:24.941Z
 
 ## 1. Users and roles
 
@@ -38,8 +38,8 @@ Generated at: 2026-07-24T10:05:22.489Z
 ## 4. Proposed portfolio v1
 
 - Constraint validation: passed
-- Backtested return control: 21.71%
-- Sleeve beta controls: U.S. 1.238 / target 1.010 failed; Developed ex-U.S. 1.226 / target 1.230 passed; Emerging 1.068 / target 1.080 passed
+- Backtested return control: 20.94%
+- Sleeve beta controls: U.S. 1.237 / target 1.010 failed; Developed ex-U.S. 1.227 / target 1.230 passed; Emerging 1.061 / target 1.080 passed
 - Backtested max drawdown: -10.58% (passed)
 - Decision: optimization required because one or more sleeve beta controls were not close enough to target
 
@@ -48,9 +48,9 @@ Generated at: 2026-07-24T10:05:22.489Z
 - Scope: all equity sleeves, Equity, style all
 - Locked weights: VTI and XOM
 - Eligible holdings optimized: 25
-- Optimized sleeve beta controls: U.S. 1.002 / target 1.010 passed; Developed ex-U.S. 1.226 / target 1.230 passed; Emerging 1.068 / target 1.080 passed
-- Optimized max drawdown: -9.00% (passed)
-- Optimized return control: 19.27% (passed within the 5% relative tolerance)
+- Optimized sleeve beta controls: U.S. 1.000 / target 1.010 passed; Developed ex-U.S. 1.227 / target 1.230 passed; Emerging 1.061 / target 1.080 passed
+- Optimized max drawdown: -9.01% (passed)
+- Optimized return control: 18.65% (passed within the 5% relative tolerance)
 - Final control result: pass
 
 | Ticker | Proposed v1 | Optimized v2 | Change | Locked |

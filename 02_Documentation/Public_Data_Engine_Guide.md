@@ -51,7 +51,7 @@ Recommended order:
   - China A local equity: 510300.SS
   - China A U.S.-listed ETF exposure: ASHR
 
-The packaged configuration targets the paid EOD Historical Data personal plan. It requests the full configured history and all configured tickers, while retaining the historical cache and using Yahoo only when EODHD does not return a usable symbol. EODHD account quotas and symbol entitlements still apply. Before company or commercial use, confirm licensing and redistribution rights directly with EODHD.
+The packaged configuration targets the paid EOD Historical Data personal plan. It requests the full configured history for every EODHD-supported configured ticker and retains the last successful cache if a request fails. It does not silently replace an EODHD-supported security with another source. The subscribed account's exchange list does not include Tokyo, so Yahoo remains only for the exact Tokyo-listed securities as a documented exception. EODHD account quotas and symbol entitlements still apply. Before company or commercial use, confirm licensing and redistribution rights directly with EODHD.
 
 Local configuration:
 
@@ -59,11 +59,11 @@ Local configuration:
 PUBLIC_DATA_PROVIDER=eodhd
 EODHD_API_TOKEN=<local secret>
 EODHD_MAX_CALLS_PER_RUN=0
-EODHD_FREE_MODE=false
-PUBLIC_DATA_YAHOO_FALLBACK=true
+PUBLIC_DATA_TOKYO_YAHOO_EXCEPTION=true
+PUBLIC_DATA_FORCE_FULL_REFRESH=false
 ```
 
-`EODHD_MAX_CALLS_PER_RUN=0` means that the application does not add its own per-run limit; it does not bypass EODHD's account quota. Store these values in `.env` for local use or in deployment environment variables. Never place the real token in frontend code, generated files, screenshots, or source control.
+`EODHD_MAX_CALLS_PER_RUN=0` means that the application does not add its own per-run limit; it does not bypass EODHD's account quota. `PUBLIC_DATA_FORCE_FULL_REFRESH=true` is a one-time migration control for rebuilding existing history from approved providers; normal scheduled runs should keep it `false`. Store these values in `.env` for local use or in deployment environment variables. Never place the real token in frontend code, generated files, screenshots, or source control.
 
 ## Allocation Scoring Method
 

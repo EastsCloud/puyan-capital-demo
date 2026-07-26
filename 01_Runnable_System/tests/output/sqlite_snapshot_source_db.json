@@ -1,8 +1,8 @@
 {
   "meta": {
     "schemaVersion": 4,
-    "createdAt": "2026-07-24T10:05:24.985Z",
-    "updatedAt": "2026-07-24T10:05:25.150Z"
+    "createdAt": "2026-07-26T09:04:27.922Z",
+    "updatedAt": "2026-07-26T09:04:28.075Z"
   },
   "users": [
     {
@@ -12,7 +12,7 @@
       "role": "User Admin",
       "active": true,
       "passwordHash": "acc505a1a9d9d3cfd7a9f2cc7237dc77a25aafc74502bcef541a79b3192e9fb3",
-      "passwordUpdatedAt": "2026-07-24T10:05:24.985Z"
+      "passwordUpdatedAt": "2026-07-26T09:04:27.922Z"
     },
     {
       "id": "committee-1",
@@ -21,7 +21,7 @@
       "role": "Decision Approver",
       "active": true,
       "passwordHash": "9a927a57a37a091e7e012f4ab2e2f2a8d33b35d69b107592fd2c1682e7947689",
-      "passwordUpdatedAt": "2026-07-24T10:05:24.985Z"
+      "passwordUpdatedAt": "2026-07-26T09:04:27.922Z"
     },
     {
       "id": "execution-1",
@@ -30,51 +30,51 @@
       "role": "Execution Approver",
       "active": true,
       "passwordHash": "7eba83d2632b4787556c09c50430d5d737cf5c80960027b287ee40e64a497a1e",
-      "passwordUpdatedAt": "2026-07-24T10:05:24.985Z"
+      "passwordUpdatedAt": "2026-07-26T09:04:27.922Z"
     }
   ],
   "sessions": [
     {
-      "id": "99d4718e-9b6f-41fa-9c57-435b73ad6b45",
+      "id": "225fdb39-dadf-40c1-a1f9-356a15708dee",
       "userId": "admin-1",
-      "createdAt": "2026-07-24T10:05:24.987Z",
+      "createdAt": "2026-07-26T09:04:27.926Z",
       "active": true
     },
     {
-      "id": "c9e8de55-0eaf-4ba8-97f7-e338230968d6",
+      "id": "70ffd578-4af4-4456-9d5d-b286c2d80847",
       "userId": "committee-1",
-      "createdAt": "2026-07-24T10:05:25.017Z",
+      "createdAt": "2026-07-26T09:04:27.947Z",
       "active": true
     },
     {
-      "id": "3f60f95e-3c06-4810-95be-d8ac1e897d5b",
+      "id": "57be77e6-aefd-4d75-abe1-f5b3e3bedb88",
       "userId": "execution-1",
-      "createdAt": "2026-07-24T10:05:25.033Z",
+      "createdAt": "2026-07-26T09:04:27.963Z",
       "active": true
     }
   ],
   "targetPackages": [
     {
-      "id": "9e347dd2-e17c-4770-98dd-40ee4603af3e",
+      "id": "2846a8b5-f3c2-42db-81aa-cabb2d3cef8d",
       "status": "Approved",
       "version": 1,
-      "createdAt": "2026-07-24T10:05:25.050Z",
+      "createdAt": "2026-07-26T09:04:27.979Z",
       "createdBy": "committee-1",
       "scenario": "Balanced",
       "finalTargetReturn": 6.83,
       "operatingCost": 3,
       "cpiEstimate": 2.7,
-      "approvedAt": "2026-07-24T10:05:25.068Z"
+      "approvedAt": "2026-07-26T09:04:27.993Z"
     }
   ],
   "portfolios": [
     {
-      "id": "c6fb4b57-c43e-49e6-bc7e-5bc5a266b4fd",
+      "id": "d991adf1-ef14-45be-8087-5e1b4e922485",
       "status": "Approved",
       "version": 1,
-      "createdAt": "2026-07-24T10:05:25.084Z",
+      "createdAt": "2026-07-26T09:04:28.008Z",
       "createdBy": "execution-1",
-      "targetPackageId": "9e347dd2-e17c-4770-98dd-40ee4603af3e",
+      "targetPackageId": "2846a8b5-f3c2-42db-81aa-cabb2d3cef8d",
       "benchmark": "Blended equity sleeve benchmark",
       "holdings": [
         {
@@ -98,7 +98,7 @@
           "weight": 20
         }
       ],
-      "approvedAt": "2026-07-24T10:05:25.100Z"
+      "approvedAt": "2026-07-26T09:04:28.023Z"
     }
   ],
   "nonEquityNavPackages": [],
@@ -106,47 +106,47 @@
   "reportDistributions": [],
   "approvals": [
     {
-      "id": "3fc65c41-5b5d-4403-a1f9-e961efa348ef",
+      "id": "75a1e718-692c-409b-8582-03ba284f8290",
       "type": "Target Package",
-      "targetId": "9e347dd2-e17c-4770-98dd-40ee4603af3e",
+      "targetId": "2846a8b5-f3c2-42db-81aa-cabb2d3cef8d",
       "actorId": "committee-1",
       "actorName": "will",
       "decision": "Approve",
       "note": "",
-      "createdAt": "2026-07-24T10:05:25.068Z"
+      "createdAt": "2026-07-26T09:04:27.993Z"
     },
     {
-      "id": "a3864cf3-bc35-44d7-96d6-9f7a73391c81",
+      "id": "9dbd2a0e-6e7d-4315-9cf0-61927d329ec4",
       "type": "Portfolio",
-      "targetId": "c6fb4b57-c43e-49e6-bc7e-5bc5a266b4fd",
+      "targetId": "d991adf1-ef14-45be-8087-5e1b4e922485",
       "actorId": "committee-1",
       "actorName": "will",
       "decision": "Approve",
       "note": "",
-      "createdAt": "2026-07-24T10:05:25.100Z"
+      "createdAt": "2026-07-26T09:04:28.023Z"
     }
   ],
   "imports": [
     {
-      "id": "6a14ca8f-0696-4140-95c8-8dd532be2544",
-      "batchId": "DL-20260724100525-001",
+      "id": "750fe549-325f-4640-a177-8e3e66be933c",
+      "batchId": "DL-20260726090428-001",
       "type": "actual_holdings",
       "fileName": "daily_holdings.csv",
       "rows": 2,
       "status": "Stored",
       "byteLength": 35,
       "contentHash": "169622ff1898f0abc1354403f14e613bd89dc392744e7bd6f9e0d0f7f7eafc39",
-      "loadedAt": "2026-07-24T10:05:25.117Z",
+      "loadedAt": "2026-07-26T09:04:28.041Z",
       "loadedBy": "execution-1",
-      "importedAt": "2026-07-24T10:05:25.117Z",
+      "importedAt": "2026-07-26T09:04:28.041Z",
       "importedBy": "execution-1",
       "rawText": "Ticker,MarketValue\nVTI,100\nEWJ,100\n"
     }
   ],
   "publicDataCache": {
     "latest": {
-      "id": "ad06f4f7-0577-45d7-8473-90b01c380ff9",
-      "recordedAt": "2026-07-24T10:05:25.134Z",
+      "id": "e98a2561-ca55-4bd6-bd2c-4be8d9daa4c1",
+      "recordedAt": "2026-07-26T09:04:28.058Z",
       "recordedBy": "committee-1",
       "generatedAt": "2026-07-22T00:00:00.000Z",
       "sourceName": "Yahoo Finance public chart adjusted close",
@@ -177,8 +177,8 @@
     },
     "refreshHistory": [
       {
-        "id": "ad06f4f7-0577-45d7-8473-90b01c380ff9",
-        "recordedAt": "2026-07-24T10:05:25.134Z",
+        "id": "e98a2561-ca55-4bd6-bd2c-4be8d9daa4c1",
+        "recordedAt": "2026-07-26T09:04:28.058Z",
         "recordedBy": "committee-1",
         "generatedAt": "2026-07-22T00:00:00.000Z",
         "sourceName": "Yahoo Finance public chart adjusted close",
@@ -209,8 +209,8 @@
   },
   "auditLog": [
     {
-      "id": "81cd2c71-72ce-42a7-8db5-ddd23f609fbf",
-      "time": "2026-07-24T10:05:24.987Z",
+      "id": "42f1aaed-96f9-41f4-b8a3-c73962e8fda6",
+      "time": "2026-07-26T09:04:27.926Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",
@@ -219,8 +219,8 @@
       "detail": ""
     },
     {
-      "id": "af4e09ca-2bfc-42ad-8004-54610da850dc",
-      "time": "2026-07-24T10:05:25.017Z",
+      "id": "e22c2c2f-2046-410e-94ff-e21bfce8b8c5",
+      "time": "2026-07-26T09:04:27.947Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -229,8 +229,8 @@
       "detail": ""
     },
     {
-      "id": "7fbb7ad7-155a-4a59-b2fd-68669265446c",
-      "time": "2026-07-24T10:05:25.033Z",
+      "id": "9eaf3969-7a65-47fb-a832-a47bbbf803be",
+      "time": "2026-07-26T09:04:27.963Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -239,8 +239,8 @@
       "detail": ""
     },
     {
-      "id": "c9377a63-7c58-4de3-bd3a-d494df9cc44a",
-      "time": "2026-07-24T10:05:25.050Z",
+      "id": "2576179a-c644-4f98-aee5-7408f9d2edcb",
+      "time": "2026-07-26T09:04:27.978Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -249,8 +249,8 @@
       "detail": ""
     },
     {
-      "id": "2e641eb3-a8d1-4f0a-9e7b-6691a7218f4b",
-      "time": "2026-07-24T10:05:25.050Z",
+      "id": "4577efa9-f4a7-4caf-9fab-50984fdd918e",
+      "time": "2026-07-26T09:04:27.979Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -259,8 +259,8 @@
       "detail": "v1"
     },
     {
-      "id": "20a71986-2639-48ce-bd7f-9627ace658d6",
-      "time": "2026-07-24T10:05:25.067Z",
+      "id": "c7e87174-2900-4d56-ae84-e8ee720781e6",
+      "time": "2026-07-26T09:04:27.993Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -269,8 +269,8 @@
       "detail": ""
     },
     {
-      "id": "e7a08d25-0cec-4011-a793-20d844a14c10",
-      "time": "2026-07-24T10:05:25.068Z",
+      "id": "d0b071c7-94fd-43f8-a3f6-77319fe08790",
+      "time": "2026-07-26T09:04:27.993Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -279,8 +279,8 @@
       "detail": "Approve: "
     },
     {
-      "id": "55d35852-1a64-4116-877f-c6414eca79ee",
-      "time": "2026-07-24T10:05:25.084Z",
+      "id": "f79d0e41-d755-4e75-b05f-318b143bc464",
+      "time": "2026-07-26T09:04:28.008Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -289,8 +289,8 @@
       "detail": ""
     },
     {
-      "id": "7578eab4-2adb-4b6e-a19b-b24b6ef9c7fc",
-      "time": "2026-07-24T10:05:25.084Z",
+      "id": "efb366e5-5625-4df6-adb9-49b8b4899c8b",
+      "time": "2026-07-26T09:04:28.008Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -299,8 +299,8 @@
       "detail": "v1"
     },
     {
-      "id": "4b614966-15d5-40b7-a411-a11a778ebd79",
-      "time": "2026-07-24T10:05:25.100Z",
+      "id": "26280cb0-2118-4bd6-80fd-266d6a994760",
+      "time": "2026-07-26T09:04:28.023Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -309,8 +309,8 @@
       "detail": ""
     },
     {
-      "id": "c6689eb1-df5f-45d7-8ac9-1fa2bf384ac6",
-      "time": "2026-07-24T10:05:25.100Z",
+      "id": "fcf60934-5404-46cf-8985-58c14e191417",
+      "time": "2026-07-26T09:04:28.023Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -319,8 +319,8 @@
       "detail": "Approve: "
     },
     {
-      "id": "b187121e-e9b1-4828-96fa-396b9ff76c66",
-      "time": "2026-07-24T10:05:25.116Z",
+      "id": "7308dc79-223e-4246-8400-37d0c839bf0a",
+      "time": "2026-07-26T09:04:28.041Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -329,8 +329,8 @@
       "detail": ""
     },
     {
-      "id": "b8fbc1b6-bc38-4e1a-b841-32cf16484e4f",
-      "time": "2026-07-24T10:05:25.117Z",
+      "id": "7d9b815f-f899-4986-bdb3-266ea4fd2728",
+      "time": "2026-07-26T09:04:28.041Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -339,8 +339,8 @@
       "detail": "actual_holdings: daily_holdings.csv, 2 row(s)"
     },
     {
-      "id": "ea9dfa1a-d71c-44d2-9c9e-a3cac3e48743",
-      "time": "2026-07-24T10:05:25.134Z",
+      "id": "18cdaf0b-b3e4-41cc-99ba-c7f122b41645",
+      "time": "2026-07-26T09:04:28.058Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -349,8 +349,8 @@
       "detail": ""
     },
     {
-      "id": "df833387-e355-4751-88d4-4f382fdeb68d",
-      "time": "2026-07-24T10:05:25.134Z",
+      "id": "babeee44-bba2-414f-9dec-2e10d762ea02",
+      "time": "2026-07-26T09:04:28.058Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -359,8 +359,8 @@
       "detail": "2026-07-22: 4 incremental ticker(s)"
     },
     {
-      "id": "cc248419-4a59-4b76-91ea-43939112e909",
-      "time": "2026-07-24T10:05:25.150Z",
+      "id": "f5afcecc-58e9-4b72-8316-b3567fe4f25f",
+      "time": "2026-07-26T09:04:28.075Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",
@@ -369,8 +369,8 @@
       "detail": ""
     },
     {
-      "id": "af6349a5-4f19-4770-b9dc-76cc99cef24c",
-      "time": "2026-07-24T10:05:25.150Z",
+      "id": "a2740416-c8c0-4e4c-a19a-a6f89c4f547e",
+      "time": "2026-07-26T09:04:28.075Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",

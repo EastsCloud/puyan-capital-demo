@@ -1,8 +1,8 @@
 {
   "meta": {
     "schemaVersion": 4,
-    "createdAt": "2026-07-24T10:05:22.738Z",
-    "updatedAt": "2026-07-24T10:05:23.254Z"
+    "createdAt": "2026-07-26T09:04:25.280Z",
+    "updatedAt": "2026-07-26T09:04:25.891Z"
   },
   "users": [
     {
@@ -12,7 +12,7 @@
       "role": "User Admin",
       "active": true,
       "passwordHash": "acc505a1a9d9d3cfd7a9f2cc7237dc77a25aafc74502bcef541a79b3192e9fb3",
-      "passwordUpdatedAt": "2026-07-24T10:05:22.738Z"
+      "passwordUpdatedAt": "2026-07-26T09:04:25.280Z"
     },
     {
       "id": "committee-1",
@@ -21,7 +21,7 @@
       "role": "Decision Approver",
       "active": true,
       "passwordHash": "937377f056160fc4b15e0b770c67136a5f03c15205b4d3bf918268fefa2c6d0a",
-      "passwordUpdatedAt": "2026-07-24T10:05:22.809Z"
+      "passwordUpdatedAt": "2026-07-26T09:04:25.338Z"
     },
     {
       "id": "execution-1",
@@ -30,10 +30,10 @@
       "role": "Execution Approver",
       "active": true,
       "passwordHash": "7eba83d2632b4787556c09c50430d5d737cf5c80960027b287ee40e64a497a1e",
-      "passwordUpdatedAt": "2026-07-24T10:05:22.738Z"
+      "passwordUpdatedAt": "2026-07-26T09:04:25.280Z"
     },
     {
-      "id": "7197f5bc-ffc3-4f4d-b33a-9df0f82b197f",
+      "id": "4a30b979-7042-4d8e-94dd-348959176b2f",
       "name": "Read Only Reviewer",
       "group": "Viewer",
       "role": "Read Only",
@@ -42,36 +42,36 @@
   ],
   "sessions": [
     {
-      "id": "a0a9d837-51aa-48c4-8b64-e967789f2504",
+      "id": "1f788099-9246-466b-bae6-c3061371788d",
       "userId": "admin-1",
-      "createdAt": "2026-07-24T10:05:22.743Z",
+      "createdAt": "2026-07-26T09:04:25.284Z",
       "active": true
     },
     {
-      "id": "089bd51d-cd06-4d4d-930e-ae6c7bbfdde5",
+      "id": "250e5188-04cf-4558-80a5-c7e236368f9d",
       "userId": "committee-1",
-      "createdAt": "2026-07-24T10:05:22.776Z",
+      "createdAt": "2026-07-26T09:04:25.299Z",
       "active": true
     },
     {
-      "id": "732798d8-b8d2-4411-917f-7aea9cd33879",
+      "id": "984288d1-abe1-499e-bf6e-16c5d6d369d2",
       "userId": "execution-1",
-      "createdAt": "2026-07-24T10:05:22.792Z",
+      "createdAt": "2026-07-26T09:04:25.318Z",
       "active": true
     },
     {
-      "id": "912dc0e9-dfe0-44d5-9f4a-48fe2e7e182f",
-      "userId": "7197f5bc-ffc3-4f4d-b33a-9df0f82b197f",
-      "createdAt": "2026-07-24T10:05:22.841Z",
+      "id": "5e796270-e25b-4251-851b-c32b1082b8af",
+      "userId": "4a30b979-7042-4d8e-94dd-348959176b2f",
+      "createdAt": "2026-07-26T09:04:25.372Z",
       "active": true
     }
   ],
   "targetPackages": [
     {
-      "id": "9ba34c88-a0b9-4419-a711-8c9a1fdb8d71",
+      "id": "21506ad5-305c-4e61-858d-62f1407e7cd7",
       "status": "Approved",
       "version": 1,
-      "createdAt": "2026-07-24T10:05:22.875Z",
+      "createdAt": "2026-07-26T09:04:25.410Z",
       "createdBy": "committee-1",
       "operatingCost": 4,
       "cpiEstimate": 3,
@@ -158,17 +158,17 @@
       },
       "targetMaxDrawdownLow": -20,
       "targetMaxDrawdownHigh": -15,
-      "approvedAt": "2026-07-24T10:05:22.893Z"
+      "approvedAt": "2026-07-26T09:04:25.427Z"
     }
   ],
   "portfolios": [
     {
-      "id": "2ad731aa-0a80-4abc-8bc4-ae23f9eaf466",
+      "id": "5c4789fc-1fbf-40db-83b2-57a301265ce0",
       "status": "Approved",
       "version": 1,
-      "createdAt": "2026-07-24T10:05:22.919Z",
+      "createdAt": "2026-07-26T09:04:25.461Z",
       "createdBy": "execution-1",
-      "targetPackageId": "9ba34c88-a0b9-4419-a711-8c9a1fdb8d71",
+      "targetPackageId": "21506ad5-305c-4e61-858d-62f1407e7cd7",
       "benchmark": "VTI",
       "holdings": [
         {
@@ -206,15 +206,15 @@
         "betaPass": true,
         "drawdownPass": true
       },
-      "approvedAt": "2026-07-24T10:05:22.952Z"
+      "approvedAt": "2026-07-26T09:04:25.493Z"
     },
     {
-      "id": "24dbcbb8-9109-4bf5-bf7f-96ac8218caac",
+      "id": "937bcdcc-997c-4341-84eb-326ce997140e",
       "status": "Approved",
       "version": 2,
-      "createdAt": "2026-07-24T10:05:22.983Z",
+      "createdAt": "2026-07-26T09:04:25.531Z",
       "createdBy": "execution-1",
-      "targetPackageId": "9ba34c88-a0b9-4419-a711-8c9a1fdb8d71",
+      "targetPackageId": "21506ad5-305c-4e61-858d-62f1407e7cd7",
       "benchmark": "VTI",
       "holdings": [
         {
@@ -233,21 +233,21 @@
       "backtest": {
         "pass": true
       },
-      "approvedAt": "2026-07-24T10:05:22.996Z"
+      "approvedAt": "2026-07-26T09:04:25.547Z"
     }
   ],
   "nonEquityNavPackages": [
     {
-      "id": "d0434385-fa9e-409d-9415-e8c4955c5056",
+      "id": "325079ef-b0e5-4559-b428-4c7734afacf3",
       "status": "Approved",
       "asOfDate": "2026-07-14",
       "bond": 25000,
       "alternative": 15000,
       "cash": 10000,
-      "submittedAt": "2026-07-24T10:05:23.056Z",
+      "submittedAt": "2026-07-26T09:04:25.636Z",
       "submittedBy": "execution-1",
       "submittedByName": "will1976",
-      "approvedAt": "2026-07-24T10:05:23.088Z",
+      "approvedAt": "2026-07-26T09:04:25.679Z",
       "approvedBy": "committee-1",
       "approvedByName": "will_updated",
       "rejectedAt": "",
@@ -257,9 +257,9 @@
   ],
   "tradeAuthorizationPackages": [
     {
-      "id": "99369cb8-c117-4dd8-ac9b-8015f296ed20",
+      "id": "3e7a77c3-16f2-4bbd-a503-ffdd970483a6",
       "version": 1,
-      "portfolioId": "2ad731aa-0a80-4abc-8bc4-ae23f9eaf466",
+      "portfolioId": "5c4789fc-1fbf-40db-83b2-57a301265ce0",
       "orders": [
         {
           "action": "Buy",
@@ -288,79 +288,79 @@
           "source": ""
         }
       ],
-      "savedAt": "2026-07-24T10:05:23.113Z",
+      "savedAt": "2026-07-26T09:04:25.722Z",
       "savedBy": "execution-1",
       "savedByName": "will1976"
     }
   ],
   "reportDistributions": [
     {
-      "id": "17e0e708-3642-4155-82f7-e17860954991",
+      "id": "fbdc7c9b-e116-49c3-9d2c-1f1c837d4919",
       "version": 1,
-      "portfolioId": "2ad731aa-0a80-4abc-8bc4-ae23f9eaf466",
-      "targetPackageId": "9ba34c88-a0b9-4419-a711-8c9a1fdb8d71",
+      "portfolioId": "5c4789fc-1fbf-40db-83b2-57a301265ce0",
+      "targetPackageId": "21506ad5-305c-4e61-858d-62f1407e7cd7",
       "status": "Sent to Committee",
       "reportPeriod": "quarterly",
       "recipientGroup": "Decision Committee",
       "distributionDate": "2026-07-14",
-      "distributedAt": "2026-07-24T10:05:23.160Z",
+      "distributedAt": "2026-07-26T09:04:25.773Z",
       "distributedBy": "execution-1",
       "distributedByName": "will1976"
     }
   ],
   "approvals": [
     {
-      "id": "cb2aafb1-5d96-4931-888b-6cb105ba0739",
+      "id": "34f23921-e1df-442f-8649-9d2ce8c48bb2",
       "type": "Target Package",
-      "targetId": "9ba34c88-a0b9-4419-a711-8c9a1fdb8d71",
+      "targetId": "21506ad5-305c-4e61-858d-62f1407e7cd7",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "decision": "Approve",
       "note": "Decision approver approved",
-      "createdAt": "2026-07-24T10:05:22.893Z"
+      "createdAt": "2026-07-26T09:04:25.427Z"
     },
     {
-      "id": "add05301-916b-4658-9ee4-912a98a0783a",
+      "id": "a3a06eb0-f8fe-4788-8721-72e1cd0da44a",
       "type": "Portfolio",
-      "targetId": "2ad731aa-0a80-4abc-8bc4-ae23f9eaf466",
+      "targetId": "5c4789fc-1fbf-40db-83b2-57a301265ce0",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "decision": "Approve",
       "note": "Decision approver approved",
-      "createdAt": "2026-07-24T10:05:22.952Z"
+      "createdAt": "2026-07-26T09:04:25.493Z"
     },
     {
-      "id": "bec14f73-bd1c-4ff3-964c-915646666e74",
+      "id": "2bda9bdf-d12a-42ca-80f7-04dd288126b4",
       "type": "Portfolio",
-      "targetId": "24dbcbb8-9109-4bf5-bf7f-96ac8218caac",
+      "targetId": "937bcdcc-997c-4341-84eb-326ce997140e",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "decision": "Approve",
       "note": "Legacy mixed portfolio approved",
-      "createdAt": "2026-07-24T10:05:22.996Z"
+      "createdAt": "2026-07-26T09:04:25.547Z"
     }
   ],
   "imports": [
     {
-      "id": "255c343d-30a7-468b-94e6-b1fe3b06fc9b",
-      "batchId": "DL-20260724100523-001",
+      "id": "59f9cc1c-612b-4110-8aaf-f5295e764919",
+      "batchId": "DL-20260726090425-001",
       "type": "actual_holdings",
       "fileName": "standard_actual_holdings.csv",
       "rows": 20,
       "status": "Stored",
       "byteLength": 2437,
       "contentHash": "41dde28908b5452f9fcd987bb66519f6984bcaaea0255474cdca198a42a19a9c",
-      "loadedAt": "2026-07-24T10:05:23.025Z",
+      "loadedAt": "2026-07-26T09:04:25.583Z",
       "loadedBy": "execution-1",
-      "importedAt": "2026-07-24T10:05:23.025Z",
+      "importedAt": "2026-07-26T09:04:25.583Z",
       "importedBy": "execution-1",
       "rawText": "AsOfDate,Account,Broker,Ticker,Name,AssetClass,Region,Currency,Quantity,Price,MarketValue,Weight\n2026-06-15,Main Account,Standard Broker,VTI,Vanguard Total Stock Market ETF,Equity,United States,USD,120,295.00,35400,35.40\n2026-06-15,Main Account,Standard Broker,NVDA,NVIDIA Corporation,Equity,United States,USD,80,142.50,11400,11.40\n2026-06-15,Main Account,Standard Broker,BIL,SPDR Bloomberg 1-3 Month T-Bill ETF,Bond,United States,USD,250,100.00,25000,25.00\n2026-06-15,Main Account,Standard Broker,CASH,Cash Position,Cash & Cash-like,Global,USD,1,28200,28200,28.20\n2026-06-16,Main Account,Standard Broker,VTI,Vanguard Total Stock Market ETF,Equity,United States,USD,120,297.25,35670,35.67\n2026-06-16,Main Account,Standard Broker,NVDA,NVIDIA Corporation,Equity,United States,USD,80,146.00,11680,11.68\n2026-06-16,Main Account,Standard Broker,BIL,SPDR Bloomberg 1-3 Month T-Bill ETF,Bond,United States,USD,250,100.00,25000,25.00\n2026-06-16,Main Account,Standard Broker,CASH,Cash Position,Cash & Cash-like,Global,USD,1,27650,27650,27.65\n2026-06-17,Main Account,Standard Broker,VTI,Vanguard Total Stock Market ETF,Equity,United States,USD,120,296.10,35532,35.53\n2026-06-17,Main Account,Standard Broker,NVDA,NVIDIA Corporation,Equity,United States,USD,80,148.75,11900,11.90\n2026-06-17,Main Account,Standard Broker,BIL,SPDR Bloomberg 1-3 Month T-Bill ETF,Bond,United States,USD,250,100.00,25000,25.00\n2026-06-17,Main Account,Standard Broker,CASH,Cash Position,Cash & Cash-like,Global,USD,1,27568,27568,27.57\n2026-06-18,Main Account,Standard Broker,VTI,Vanguard Total Stock Market ETF,Equity,United States,USD,120,299.00,35880,35.88\n2026-06-18,Main Account,Standard Broker,NVDA,NVIDIA Corporation,Equity,United States,USD,80,151.25,12100,12.10\n2026-06-18,Main Account,Standard Broker,BIL,SPDR Bloomberg 1-3 Month T-Bill ETF,Bond,United States,USD,250,100.00,25000,25.00\n2026-06-18,Main Account,Standard Broker,CASH,Cash Position,Cash & Cash-like,Global,USD,1,27020,27020,27.02\n2026-06-19,Main Account,Standard Broker,VTI,Vanguard Total Stock Market ETF,Equity,United States,USD,120,300.00,36000,36.00\n2026-06-19,Main Account,Standard Broker,NVDA,NVIDIA Corporation,Equity,United States,USD,80,150.00,12000,12.00\n2026-06-19,Main Account,Standard Broker,BIL,SPDR Bloomberg 1-3 Month T-Bill ETF,Bond,United States,USD,250,100.00,25000,25.00\n2026-06-19,Main Account,Standard Broker,CASH,Cash Position,Cash & Cash-like,Global,USD,1,27000,27000,27.00\n"
     }
   ],
   "publicDataCache": {
     "latest": {
-      "id": "63e7b611-556a-47ed-b85d-3508dc61a5fb",
-      "recordedAt": "2026-07-24T10:05:23.208Z",
+      "id": "801e309a-c4e5-430b-95de-3030db1f9b17",
+      "recordedAt": "2026-07-26T09:04:25.831Z",
       "recordedBy": "committee-1",
       "generatedAt": "2026-07-14T00:00:00.000Z",
       "sourceName": "Public price source",
@@ -388,8 +388,8 @@
     },
     "refreshHistory": [
       {
-        "id": "63e7b611-556a-47ed-b85d-3508dc61a5fb",
-        "recordedAt": "2026-07-24T10:05:23.208Z",
+        "id": "801e309a-c4e5-430b-95de-3030db1f9b17",
+        "recordedAt": "2026-07-26T09:04:25.831Z",
         "recordedBy": "committee-1",
         "generatedAt": "2026-07-14T00:00:00.000Z",
         "sourceName": "Public price source",
@@ -418,8 +418,8 @@
   },
   "auditLog": [
     {
-      "id": "ae9a32df-f62f-4965-852a-6f583d874d34",
-      "time": "2026-07-24T10:05:22.743Z",
+      "id": "d9007feb-8786-4c0d-9c2f-852c0027af99",
+      "time": "2026-07-26T09:04:25.284Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",
@@ -428,8 +428,8 @@
       "detail": ""
     },
     {
-      "id": "0822dabf-36dd-4e53-a05d-79406969d8f5",
-      "time": "2026-07-24T10:05:22.776Z",
+      "id": "894d83c4-ff01-414f-a8d2-4bcebaaa18e6",
+      "time": "2026-07-26T09:04:25.299Z",
       "actorId": "committee-1",
       "actorName": "will",
       "actorGroup": "Decision Committee",
@@ -438,8 +438,8 @@
       "detail": ""
     },
     {
-      "id": "fcf89483-884d-49f3-b654-13e7a15444ba",
-      "time": "2026-07-24T10:05:22.792Z",
+      "id": "77384476-9916-4f99-a97f-357f0ce7c239",
+      "time": "2026-07-26T09:04:25.318Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -448,8 +448,8 @@
       "detail": ""
     },
     {
-      "id": "252267ee-9029-48b5-99ac-33327265ff6b",
-      "time": "2026-07-24T10:05:22.809Z",
+      "id": "7802a663-b0a2-43f8-a096-f57b4ba74f2d",
+      "time": "2026-07-26T09:04:25.338Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -458,8 +458,8 @@
       "detail": "will -> will_updated"
     },
     {
-      "id": "bf1aa563-d2e5-4115-830d-e92a2caf128c",
-      "time": "2026-07-24T10:05:22.825Z",
+      "id": "ea7a4b23-5b4d-46b0-b360-65d42c6be727",
+      "time": "2026-07-26T09:04:25.355Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",
@@ -468,8 +468,8 @@
       "detail": ""
     },
     {
-      "id": "0ba04a39-550a-44e6-b116-08deadc395ef",
-      "time": "2026-07-24T10:05:22.825Z",
+      "id": "3a277d6f-4287-473b-9ca7-80d900c81cac",
+      "time": "2026-07-26T09:04:25.355Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",
@@ -478,9 +478,9 @@
       "detail": "Read Only Reviewer / Viewer"
     },
     {
-      "id": "83f43d61-d37b-4ce7-b440-ffc75d3665c8",
-      "time": "2026-07-24T10:05:22.841Z",
-      "actorId": "7197f5bc-ffc3-4f4d-b33a-9df0f82b197f",
+      "id": "4e201dd0-22e5-437f-bbee-66634deddd90",
+      "time": "2026-07-26T09:04:25.372Z",
+      "actorId": "4a30b979-7042-4d8e-94dd-348959176b2f",
       "actorName": "Read Only Reviewer",
       "actorGroup": "Viewer",
       "action": "Login",
@@ -488,9 +488,9 @@
       "detail": ""
     },
     {
-      "id": "ae132476-f95d-4c36-9252-eeb9420adab4",
-      "time": "2026-07-24T10:05:22.857Z",
-      "actorId": "7197f5bc-ffc3-4f4d-b33a-9df0f82b197f",
+      "id": "db6df301-f68e-47ad-88a9-d9a6695086ba",
+      "time": "2026-07-26T09:04:25.393Z",
+      "actorId": "4a30b979-7042-4d8e-94dd-348959176b2f",
       "actorName": "Read Only Reviewer",
       "actorGroup": "Viewer",
       "action": "Create target package",
@@ -498,8 +498,8 @@
       "detail": "Required permission: decision"
     },
     {
-      "id": "aafe2e66-7ead-48ae-83cd-b39e0da99ece",
-      "time": "2026-07-24T10:05:22.875Z",
+      "id": "36ec4ed0-d3c7-4586-a504-98738c719d3b",
+      "time": "2026-07-26T09:04:25.410Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -508,8 +508,8 @@
       "detail": ""
     },
     {
-      "id": "738a1d8d-b99b-43da-93eb-474fdce02b73",
-      "time": "2026-07-24T10:05:22.875Z",
+      "id": "b8e9640d-16fd-4afd-bddd-a215aa6bdf66",
+      "time": "2026-07-26T09:04:25.410Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -518,8 +518,8 @@
       "detail": "v1"
     },
     {
-      "id": "b5212ca0-9925-4ea8-a0e1-732d0058c702",
-      "time": "2026-07-24T10:05:22.892Z",
+      "id": "f145d99b-6b1d-412e-bcab-dbbe8bfdef5f",
+      "time": "2026-07-26T09:04:25.427Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -528,8 +528,8 @@
       "detail": ""
     },
     {
-      "id": "f0a1e469-9f1b-47ae-bafd-66952429d2df",
-      "time": "2026-07-24T10:05:22.893Z",
+      "id": "d4685f85-cf4c-4bff-a354-d8fec7ad9220",
+      "time": "2026-07-26T09:04:25.427Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -538,18 +538,18 @@
       "detail": "Approve: Decision approver approved"
     },
     {
-      "id": "4ef958dd-7463-4270-952c-fc1501985a7c",
-      "time": "2026-07-24T10:05:22.903Z",
+      "id": "92f28dfa-ad0c-4f72-96ac-b98e739eb415",
+      "time": "2026-07-26T09:04:25.444Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
       "action": "Read latest approved target package",
       "result": "Allowed",
-      "detail": "9ba34c88-a0b9-4419-a711-8c9a1fdb8d71"
+      "detail": "21506ad5-305c-4e61-858d-62f1407e7cd7"
     },
     {
-      "id": "1f223b4e-d62d-40e0-8643-3955613a5716",
-      "time": "2026-07-24T10:05:22.918Z",
+      "id": "05285eb2-012b-4f56-8daf-676fb269d7f9",
+      "time": "2026-07-26T09:04:25.461Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -558,8 +558,8 @@
       "detail": ""
     },
     {
-      "id": "c42d8ace-df31-4561-ac32-89669e1f61aa",
-      "time": "2026-07-24T10:05:22.919Z",
+      "id": "59aaa956-82e1-42ec-91b3-0da651a3b0f8",
+      "time": "2026-07-26T09:04:25.461Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -568,8 +568,8 @@
       "detail": "v1"
     },
     {
-      "id": "675c6a56-40b3-43c8-b5ab-a12ed471855d",
-      "time": "2026-07-24T10:05:22.936Z",
+      "id": "a9f9539b-f28d-4331-adf8-4b77883b2dc5",
+      "time": "2026-07-26T09:04:25.476Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -578,8 +578,8 @@
       "detail": "Required permission: decision"
     },
     {
-      "id": "375a15cd-c6c7-4b3a-953f-a873eee4286a",
-      "time": "2026-07-24T10:05:22.952Z",
+      "id": "2aeb3bb7-6d54-4d41-9d34-3f6685e19e14",
+      "time": "2026-07-26T09:04:25.492Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -588,8 +588,8 @@
       "detail": ""
     },
     {
-      "id": "6e9fb871-51af-4890-ab7a-5ddfe9817714",
-      "time": "2026-07-24T10:05:22.952Z",
+      "id": "c8e5dee5-8944-4830-b86b-80590e06646b",
+      "time": "2026-07-26T09:04:25.493Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -598,18 +598,18 @@
       "detail": "Approve: Decision approver approved"
     },
     {
-      "id": "09ddd2aa-84f9-4872-b4cd-404e4b6cb074",
-      "time": "2026-07-24T10:05:22.968Z",
+      "id": "194226a3-1163-4c9c-8cb1-db4b7f8d10c8",
+      "time": "2026-07-26T09:04:25.509Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
       "action": "Read latest approved portfolio",
       "result": "Allowed",
-      "detail": "2ad731aa-0a80-4abc-8bc4-ae23f9eaf466"
+      "detail": "5c4789fc-1fbf-40db-83b2-57a301265ce0"
     },
     {
-      "id": "14985f11-2e1e-480e-9293-6a870112287d",
-      "time": "2026-07-24T10:05:22.983Z",
+      "id": "257256f0-b0a1-456d-8898-34fceb35d200",
+      "time": "2026-07-26T09:04:25.531Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -618,8 +618,8 @@
       "detail": ""
     },
     {
-      "id": "f364f975-afa2-49e8-b9ef-6d4bf8bf7f60",
-      "time": "2026-07-24T10:05:22.983Z",
+      "id": "2faf4e24-9820-4ccd-a692-6059c9374eab",
+      "time": "2026-07-26T09:04:25.531Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -628,8 +628,8 @@
       "detail": "v2"
     },
     {
-      "id": "1d16ba8c-68a4-4724-9c7a-818b1d8d3283",
-      "time": "2026-07-24T10:05:22.996Z",
+      "id": "ebae138f-a44b-4d83-a889-26ff774755b8",
+      "time": "2026-07-26T09:04:25.547Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -638,8 +638,8 @@
       "detail": ""
     },
     {
-      "id": "cf3d1567-efa0-4d1b-928a-6883e0003906",
-      "time": "2026-07-24T10:05:22.996Z",
+      "id": "7c4e1210-6120-4b17-a1f9-d5545a88b148",
+      "time": "2026-07-26T09:04:25.547Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -648,18 +648,18 @@
       "detail": "Approve: Legacy mixed portfolio approved"
     },
     {
-      "id": "29fb6ccc-fe82-4a11-a02f-f2edeb035800",
-      "time": "2026-07-24T10:05:23.012Z",
+      "id": "3add4b44-6cb6-4019-b70f-76e43bdffac8",
+      "time": "2026-07-26T09:04:25.564Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
       "action": "Read latest approved portfolio",
       "result": "Allowed",
-      "detail": "2ad731aa-0a80-4abc-8bc4-ae23f9eaf466"
+      "detail": "5c4789fc-1fbf-40db-83b2-57a301265ce0"
     },
     {
-      "id": "83340f3f-f1cc-4615-b765-d0d5ca4e2c67",
-      "time": "2026-07-24T10:05:23.025Z",
+      "id": "a837957b-2b29-438f-8da6-3c8d69a57cf0",
+      "time": "2026-07-26T09:04:25.583Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -668,8 +668,8 @@
       "detail": ""
     },
     {
-      "id": "1ce5bddd-5ff7-4cfa-96ef-45019a4247e0",
-      "time": "2026-07-24T10:05:23.025Z",
+      "id": "d12bf910-ffc8-4470-b001-e23c85ebdefb",
+      "time": "2026-07-26T09:04:25.584Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -678,8 +678,8 @@
       "detail": "actual_holdings: standard_actual_holdings.csv, 20 row(s)"
     },
     {
-      "id": "e117ecb3-c295-40ea-afed-e781396e0c6a",
-      "time": "2026-07-24T10:05:23.040Z",
+      "id": "345d66da-1c55-438b-9d7b-f8409f93a575",
+      "time": "2026-07-26T09:04:25.609Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -688,8 +688,8 @@
       "detail": ""
     },
     {
-      "id": "4c035f4f-c880-41a1-b8e6-0e092f2820f7",
-      "time": "2026-07-24T10:05:23.056Z",
+      "id": "51217d6c-b570-41c1-98d3-dfe732b51295",
+      "time": "2026-07-26T09:04:25.636Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -698,8 +698,8 @@
       "detail": ""
     },
     {
-      "id": "7a7687dd-bdc6-4510-b12b-49aa0cb21aea",
-      "time": "2026-07-24T10:05:23.056Z",
+      "id": "d0765f6a-e7c8-49b8-baf6-34501d4f2c9d",
+      "time": "2026-07-26T09:04:25.636Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -708,8 +708,8 @@
       "detail": "2026-07-14 NAV package"
     },
     {
-      "id": "d21ff8f1-7a3f-45a6-ba9e-b1f6ba4f1f45",
-      "time": "2026-07-24T10:05:23.072Z",
+      "id": "314962f0-25dc-42fd-aec3-367082b2acb9",
+      "time": "2026-07-26T09:04:25.659Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -718,8 +718,8 @@
       "detail": "Required permission: decision"
     },
     {
-      "id": "6fce7eae-f616-490a-b675-4d098a33baf8",
-      "time": "2026-07-24T10:05:23.088Z",
+      "id": "77ef974e-6927-43a2-a06e-8c69b81735c6",
+      "time": "2026-07-26T09:04:25.678Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -728,18 +728,18 @@
       "detail": ""
     },
     {
-      "id": "1a6edf2f-e6c2-4c8b-bd08-3a00a0409df9",
-      "time": "2026-07-24T10:05:23.088Z",
+      "id": "e8917410-2a35-4c9f-8e92-17a4776ae402",
+      "time": "2026-07-26T09:04:25.679Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
       "action": "Non-equity NAV approval recorded",
       "result": "Allowed",
-      "detail": "Approve: d0434385-fa9e-409d-9415-e8c4955c5056"
+      "detail": "Approve: 325079ef-b0e5-4559-b428-4c7734afacf3"
     },
     {
-      "id": "c04092f2-2ca7-41a4-8311-271a470df168",
-      "time": "2026-07-24T10:05:23.097Z",
+      "id": "bdeb7b8b-823d-4ae0-bd4f-9d5e59fd9357",
+      "time": "2026-07-26T09:04:25.703Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -748,8 +748,8 @@
       "detail": ""
     },
     {
-      "id": "be601220-2062-494e-8c49-eb42830f9502",
-      "time": "2026-07-24T10:05:23.114Z",
+      "id": "0e3703de-769c-45f0-b928-0d62c7ac9353",
+      "time": "2026-07-26T09:04:25.722Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -758,8 +758,8 @@
       "detail": "2 order(s), v1"
     },
     {
-      "id": "1c7da80d-6a52-4e82-a87b-dc398390b689",
-      "time": "2026-07-24T10:05:23.129Z",
+      "id": "33f8b097-97ed-4131-89c6-8df87f6288c9",
+      "time": "2026-07-26T09:04:25.741Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -768,9 +768,9 @@
       "detail": ""
     },
     {
-      "id": "449235c2-1ee6-425d-b604-5596f8b23c76",
-      "time": "2026-07-24T10:05:23.145Z",
-      "actorId": "7197f5bc-ffc3-4f4d-b33a-9df0f82b197f",
+      "id": "e94bed4e-9b15-49c5-a088-b9568f97365f",
+      "time": "2026-07-26T09:04:25.757Z",
+      "actorId": "4a30b979-7042-4d8e-94dd-348959176b2f",
       "actorName": "Read Only Reviewer",
       "actorGroup": "Viewer",
       "action": "Save trade authorizations",
@@ -778,8 +778,8 @@
       "detail": "Execution Team or Decision Committee required"
     },
     {
-      "id": "3de499fd-2adf-46c5-afcf-eeceb85fd2b4",
-      "time": "2026-07-24T10:05:23.159Z",
+      "id": "11f5dba0-b569-4b25-b6dc-ccbeb1e10098",
+      "time": "2026-07-26T09:04:25.773Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -788,18 +788,18 @@
       "detail": ""
     },
     {
-      "id": "a0d64ea0-b5ac-472e-a03a-c39a0735ff53",
-      "time": "2026-07-24T10:05:23.160Z",
+      "id": "6cf0bb45-4edf-4ee5-99fd-35bb19ae15dc",
+      "time": "2026-07-26T09:04:25.773Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
       "action": "Formal report distributed",
       "result": "Allowed",
-      "detail": "Decision Committee; portfolio 2ad731aa-0a80-4abc-8bc4-ae23f9eaf466; v1"
+      "detail": "Decision Committee; portfolio 5c4789fc-1fbf-40db-83b2-57a301265ce0; v1"
     },
     {
-      "id": "1a7c6d39-fce4-4c72-b748-e1e8d5c2724b",
-      "time": "2026-07-24T10:05:23.175Z",
+      "id": "40a46d50-86ce-4d51-acd3-a65c18437549",
+      "time": "2026-07-26T09:04:25.788Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -808,8 +808,8 @@
       "detail": ""
     },
     {
-      "id": "f9ed1c1d-d980-45ad-9ec1-b480e0464e27",
-      "time": "2026-07-24T10:05:23.192Z",
+      "id": "1ad0f189-1224-4401-84bd-a31ab0d731f4",
+      "time": "2026-07-26T09:04:25.811Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -818,8 +818,8 @@
       "detail": "Required permission: execution"
     },
     {
-      "id": "c5b2b513-8044-4362-baa1-9cd889bc153e",
-      "time": "2026-07-24T10:05:23.207Z",
+      "id": "e195ce57-7fed-495f-a37e-4779057baa5c",
+      "time": "2026-07-26T09:04:25.830Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -828,8 +828,8 @@
       "detail": ""
     },
     {
-      "id": "f400d82a-d50e-4f3a-89a9-1b67e27a8ba3",
-      "time": "2026-07-24T10:05:23.208Z",
+      "id": "cee1f497-8cc1-4bbc-826a-f50f16589c94",
+      "time": "2026-07-26T09:04:25.831Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",
@@ -838,8 +838,8 @@
       "detail": "2026-07-14: 53 incremental ticker(s)"
     },
     {
-      "id": "cfd13b94-3b83-4944-8274-ae52442460be",
-      "time": "2026-07-24T10:05:23.224Z",
+      "id": "f272a492-5863-48b5-a79f-cded6b0a1b0a",
+      "time": "2026-07-26T09:04:25.851Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -848,8 +848,8 @@
       "detail": ""
     },
     {
-      "id": "50460ef5-781e-469f-a588-bbaaa0c50db9",
-      "time": "2026-07-24T10:05:23.240Z",
+      "id": "de2c04ea-b683-4cf6-be7d-e349b9aa15ce",
+      "time": "2026-07-26T09:04:25.871Z",
       "actorId": "execution-1",
       "actorName": "will1976",
       "actorGroup": "Execution Team",
@@ -858,8 +858,8 @@
       "detail": ""
     },
     {
-      "id": "89a5740d-097a-44c0-a6ac-238a8e92e39d",
-      "time": "2026-07-24T10:05:23.254Z",
+      "id": "d2b843e7-c4c4-41ae-824f-5c6338f762bc",
+      "time": "2026-07-26T09:04:25.890Z",
       "actorId": "committee-1",
       "actorName": "will_updated",
       "actorGroup": "Decision Committee",

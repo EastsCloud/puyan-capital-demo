@@ -1,18 +1,18 @@
 # SQLite Live Store Check Result
 
-Generated at: 2026-07-24T10:05:24.874Z
+Generated at: 2026-07-26T09:04:27.781Z
 
 | Status | Check | Detail |
 | --- | --- | --- |
 | PASS | Legacy JSON source is available for migration | 3 user(s) |
 | PASS | Store uses SQLite persistence for .sqlite path | sqlite |
 | PASS | All default users can log in from SQLite | 3 sessions created |
-| PASS | Approved portfolio reloads from SQLite after reopening store | 1cb8fc2a-ad3f-4022-a1c4-4b50c56be553 |
+| PASS | Approved portfolio reloads from SQLite after reopening store | 6dc07fb3-e30b-4d9c-b8f9-bcadd0b0fba9 |
 | PASS | Approved non-equity NAV reloads from normalized SQLite | Approved |
 | PASS | Trade orders reload from normalized child rows | 2 order(s) |
 | PASS | Report distribution reloads from normalized SQLite | Sent to Committee |
 | PASS | Imported source text reloads from its dedicated SQLite column | 56 character(s) |
-| PASS | Public data raw series reloads from normalized data-set rows | 0c881d77-0df0-4d96-8ad9-041bf59467d5 |
+| PASS | Public data raw series reloads from normalized data-set rows | 93ab579f-43e4-4dc3-81da-6fba90e84024 |
 | PASS | SQLite live database file exists | E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\sqlite_live_store_check_db.sqlite |
 | PASS | SQLite app_state table stores current live state | 1 |
 | PASS | SQLite keeps rolling state backups | 10 |

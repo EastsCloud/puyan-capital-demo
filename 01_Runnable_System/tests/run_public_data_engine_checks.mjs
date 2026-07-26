@@ -67,10 +67,15 @@ try {
   record(["eodhd", "yahoo"].includes(manifest.provider?.active) ? "PASS" : "FAIL", "Manifest identifies active provider", manifest.provider?.active || "missing");
   record(manifest.provider?.tokenStoredInManifest === false ? "PASS" : "FAIL", "Manifest confirms API token is not stored", String(manifest.provider?.tokenStoredInManifest));
   record(!JSON.stringify(manifest).includes("api_token=") ? "PASS" : "FAIL", "Manifest does not expose API token query parameters", "token query absent");
+  record(manifest.provider?.genericYahooFallbackEnabled === false ? "PASS" : "FAIL", "Generic Yahoo fallback is disabled", String(manifest.provider?.genericYahooFallbackEnabled));
+  record(manifest.provider?.yahooTokyoExceptionEnabled === true ? "PASS" : "FAIL", "Tokyo-only Yahoo exception is explicit", String(manifest.provider?.yahooTokyoExceptionEnabled));
   record(manifest.cache?.strategy ? "PASS" : "FAIL", "Manifest records cache strategy", manifest.cache?.strategy || "missing");
   record(Number.isFinite(Number(manifest.cache?.incrementalTickers)) ? "PASS" : "FAIL", "Manifest records incremental ticker count", String(manifest.cache?.incrementalTickers));
   record(Array.isArray(manifest.cache?.refreshes) ? "PASS" : "FAIL", "Manifest records ticker refresh detail", `${manifest.cache?.refreshes?.length || 0} refresh row(s)`);
   record(manifest.cache.refreshes.every((item) => item.provider) ? "PASS" : "FAIL", "Each ticker refresh records its provider", `${manifest.cache.refreshes.length} refresh row(s)`);
+  const nonEodhd = manifest.cache.refreshes.filter((item) => item.provider !== "EODHD" && item.provider !== "Cache");
+  record(nonEodhd.every((item) => item.provider.includes("Tokyo-only exception")) ? "PASS" : "FAIL", "Non-EODHD price use is limited to the Tokyo exception", nonEodhd.map((item) => item.ticker).join(", ") || "none");
+  record(manifest.cache.refreshes.some((item) => item.ticker === "TLT" && item.provider === "EODHD") ? "PASS" : "FAIL", "TLT history is supplied by EODHD", manifest.cache.refreshes.find((item) => item.ticker === "TLT")?.provider || "missing");
 
   const reportPath = writeReport();
   console.log(`Public data engine checks passed: ${checks.length} checks`);

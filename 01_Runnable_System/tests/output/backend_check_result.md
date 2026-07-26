@@ -1,40 +1,40 @@
 # Backend Check Result
 
-Generated at: 2026-07-24T10:05:23.273Z
+Generated at: 2026-07-26T09:04:25.912Z
 
 | Status | Check | Detail |
 | --- | --- | --- |
-| PASS | Admin login creates session | a0a9d837-51aa-48c4-8b64-e967789f2504 |
-| PASS | Committee login creates session | 089bd51d-cd06-4d4d-930e-ae6c7bbfdde5 |
-| PASS | Execution login creates session | 732798d8-b8d2-4411-917f-7aea9cd33879 |
+| PASS | Admin login creates session | 1f788099-9246-466b-bae6-c3061371788d |
+| PASS | Committee login creates session | 250e5188-04cf-4558-80a5-c7e236368f9d |
+| PASS | Execution login creates session | 984288d1-abe1-499e-bf6e-16c5d6d369d2 |
 | PASS | Backend session can be restored | system_admin |
 | PASS | User can update own profile name | will_updated |
 | PASS | Profile update response does not expose password hash | passwordHash hidden |
-| PASS | Admin can create user | 7197f5bc-ffc3-4f4d-b33a-9df0f82b197f |
+| PASS | Admin can create user | 4a30b979-7042-4d8e-94dd-348959176b2f |
 | PASS | Viewer cannot create target package | blocked with 403 |
-| PASS | Decision committee can submit target package | 9ba34c88-a0b9-4419-a711-8c9a1fdb8d71 |
+| PASS | Decision committee can submit target package | 21506ad5-305c-4e61-858d-62f1407e7cd7 |
 | PASS | Target package requires one decision committee approval | status Approved |
 | PASS | Latest approved target preserves annual decision snapshot | 12 |
 | PASS | Approved target snapshot preserves sleeve-specific risk-free rate | 0.5 |
 | PASS | Approved target snapshot preserves regional allocation recommendation | 25 |
-| PASS | Execution team can submit portfolio | 2ad731aa-0a80-4abc-8bc4-ae23f9eaf466 |
+| PASS | Execution team can submit portfolio | 5c4789fc-1fbf-40db-83b2-57a301265ce0 |
 | PASS | Execution team cannot approve portfolio as committee | blocked with 403 |
 | PASS | Portfolio requires one decision committee approval | status Approved |
-| PASS | Latest approved portfolio can be reloaded | 2ad731aa-0a80-4abc-8bc4-ae23f9eaf466 |
+| PASS | Latest approved portfolio can be reloaded | 5c4789fc-1fbf-40db-83b2-57a301265ce0 |
 | PASS | Latest approved portfolio preserves holdings | 4 holding row(s) |
-| PASS | Latest approved portfolio ignores legacy non-equity implementation records | 2ad731aa-0a80-4abc-8bc4-ae23f9eaf466 |
+| PASS | Latest approved portfolio ignores legacy non-equity implementation records | 5c4789fc-1fbf-40db-83b2-57a301265ce0 |
 | PASS | Execution team can import actual holdings | 20 row(s) |
 | PASS | Latest imported holdings retain recoverable source text | 20 row(s) |
-| PASS | Execution team can submit non-equity NAV | d0434385-fa9e-409d-9415-e8c4955c5056 |
+| PASS | Execution team can submit non-equity NAV | 325079ef-b0e5-4559-b428-4c7734afacf3 |
 | PASS | Execution team cannot approve non-equity NAV | blocked with 403 |
-| PASS | Decision committee approves non-equity NAV | d0434385-fa9e-409d-9415-e8c4955c5056 |
-| PASS | Latest approved non-equity NAV can be reloaded | d0434385-fa9e-409d-9415-e8c4955c5056 |
+| PASS | Decision committee approves non-equity NAV | 325079ef-b0e5-4559-b428-4c7734afacf3 |
+| PASS | Latest approved non-equity NAV can be reloaded | 325079ef-b0e5-4559-b428-4c7734afacf3 |
 | PASS | Execution team can persist trade authorizations | 2 order(s) |
-| PASS | Latest trade authorizations can be reloaded | 99369cb8-c117-4dd8-ac9b-8015f296ed20 |
+| PASS | Latest trade authorizations can be reloaded | 3e7a77c3-16f2-4bbd-a503-ffdd970483a6 |
 | PASS | Trade authorization reload preserves committee decision | Approve |
 | PASS | Viewer cannot save trade authorizations | blocked with 403 |
-| PASS | Execution team can record formal report distribution | 17e0e708-3642-4155-82f7-e17860954991 |
-| PASS | Decision committee can reload the latest formal report distribution | 17e0e708-3642-4155-82f7-e17860954991 |
+| PASS | Execution team can record formal report distribution | fbdc7c9b-e116-49c3-9d2c-1f1c837d4919 |
+| PASS | Decision committee can reload the latest formal report distribution | fbdc7c9b-e116-49c3-9d2c-1f1c837d4919 |
 | PASS | Report distribution preserves recipient group | Decision Committee |
 | PASS | Decision committee cannot submit formal report distribution | blocked with 403 |
 | PASS | Decision committee can record annual public data cache metadata | 53 incremental tickers |

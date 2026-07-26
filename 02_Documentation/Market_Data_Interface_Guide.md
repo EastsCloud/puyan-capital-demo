@@ -7,7 +7,7 @@ The system uses a standard market data interface for historical allocation recom
 The current prototype supports three paths:
 
 1. An EODHD personal API connection for prioritized end-of-day price refreshes.
-2. A Yahoo public fallback plus local historical cache.
+2. A local historical cache, plus a Yahoo exception only for exact Tokyo-listed securities that the subscribed EODHD account does not cover.
 3. A manual Excel workflow where the data team prepares a standard workbook and exports the `Allocation_Stats` sheet as CSV.
 
 The source governance file is:
@@ -34,7 +34,7 @@ data/public_data_engine_output/auto_ticker_universe.csv
 
 1. Start the local backend.
 2. Log in as Decision Committee and click `Run Annual Public Data` in the `Annual Public Data Engine` section.
-3. The system first uses EODHD within the configured call budget, then retains cached history or uses the Yahoo fallback where the free entitlement is insufficient.
+3. The system uses the paid EODHD feed for every supported configured security. If an EODHD request fails, it retains the last successful cache instead of silently switching providers. Yahoo is used only for the documented Tokyo-listed exceptions.
 4. The engine generates historical prices, ticker universe, and market statistics CSV files.
 5. The application loads those generated CSV files into the current workflow.
 

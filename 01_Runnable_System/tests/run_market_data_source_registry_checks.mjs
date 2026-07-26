@@ -44,7 +44,8 @@ try {
   record(registry.version ? "PASS" : "FAIL", "Registry has version", registry.version || "missing");
   record(Array.isArray(sources) && sources.length >= 5 ? "PASS" : "FAIL", "Registry lists public, fallback, and planned vendor sources", `${sources.length} source(s)`);
   record(byId.has("eodhd-eod-adjusted-close") ? "PASS" : "FAIL", "EODHD personal test source is registered", "eodhd-eod-adjusted-close");
-  record(byId.has("yahoo-chart-adjusted-close") ? "PASS" : "FAIL", "Public price source is registered", "yahoo-chart-adjusted-close");
+  record(byId.has("yahoo-chart-adjusted-close") ? "PASS" : "FAIL", "Tokyo-only public price exception is registered", "yahoo-chart-adjusted-close");
+  record(byId.get("yahoo-chart-adjusted-close")?.status === "retained_tokyo_exception" ? "PASS" : "FAIL", "Yahoo use is restricted to the Tokyo exception", byId.get("yahoo-chart-adjusted-close")?.status || "missing");
   record(byId.has("administrator-manual-market-data") ? "PASS" : "FAIL", "Manual fallback source is registered", "administrator-manual-market-data");
   record(byId.has("future-institutional-market-data-vendor") ? "PASS" : "FAIL", "Future paid vendor interface is registered", "future-institutional-market-data-vendor");
 

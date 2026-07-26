@@ -24,25 +24,27 @@ async function loadLocalEnvironment() {
 
 await loadLocalEnvironment();
 
-const yahooSourceName = "Yahoo Finance public chart adjusted close";
+const yahooTokyoSourceName = "Yahoo Finance public chart adjusted close (Tokyo-only exception)";
 const yahooSourceUrl = "https://query1.finance.yahoo.com/v8/finance/chart/";
 const eodhdSourceName = "EODHD end-of-day adjusted close";
 const eodhdSourceUrl = "https://eodhd.com/api/eod/";
-const preferredProvider = String(process.env.PUBLIC_DATA_PROVIDER || "yahoo").trim().toLowerCase();
+const preferredProvider = String(process.env.PUBLIC_DATA_PROVIDER || "eodhd").trim().toLowerCase();
 const eodhdApiToken = String(process.env.EODHD_API_TOKEN || "").trim();
 const eodhdEnabled = preferredProvider === "eodhd" && Boolean(eodhdApiToken);
 const configuredEodhdCallLimit = Number.parseInt(process.env.EODHD_MAX_CALLS_PER_RUN || "0", 10);
 const eodhdMaxCallsPerRun = Number.isFinite(configuredEodhdCallLimit) && configuredEodhdCallLimit > 0
   ? configuredEodhdCallLimit
   : null;
-const eodhdFreeMode = String(process.env.EODHD_FREE_MODE || "false").trim().toLowerCase() === "true";
-const yahooFallbackEnabled = String(process.env.PUBLIC_DATA_YAHOO_FALLBACK || "true").trim().toLowerCase() !== "false";
+const yahooTokyoExceptionEnabled = String(process.env.PUBLIC_DATA_TOKYO_YAHOO_EXCEPTION || "true").trim().toLowerCase() !== "false";
+const forceFullRefresh = String(process.env.PUBLIC_DATA_FORCE_FULL_REFRESH || "false").trim().toLowerCase() === "true";
 const sourceName = eodhdEnabled
-  ? `${eodhdSourceName} with cached history and Yahoo Finance fallback`
-  : yahooSourceName;
+  ? `${eodhdSourceName}; ${yahooTokyoSourceName} retained only where EODHD has no Tokyo exchange coverage`
+  : eodhdSourceName;
 const sourceUrl = eodhdEnabled ? eodhdSourceUrl : yahooSourceUrl;
 const cacheRefreshDays = 7;
-const cacheStartGraceDays = 45;
+const unsupportedEodhdMarketReasons = new Map([
+  ["Tokyo", "The paid EODHD account exchange list does not include the Tokyo Stock Exchange; the exact local security cannot be replaced by an ADR or overseas proxy."],
+]);
 
 const engineConfig = {
   startDate: "2016-01-01",
@@ -99,6 +101,7 @@ const engineConfig = {
     { ticker: "600036.SS", yahoo: "600036.SS", name: "China Merchants Bank Co., Ltd.", market: "Shanghai", region: "China A", assetClass: "Equity", styleFactor: "Cyclical", theme: "Financials" },
     { ticker: "000858.SZ", yahoo: "000858.SZ", name: "Wuliangye Yibin Co., Ltd.", market: "Shenzhen", region: "China A", assetClass: "Equity", styleFactor: "Cyclical", theme: "Consumer" },
     { ticker: "AGG", yahoo: "agg", name: "iShares Core U.S. Aggregate Bond ETF", market: "US", region: "United States", assetClass: "Bond", styleFactor: "Defensive", theme: "Not Applicable" },
+    { ticker: "TLT", yahoo: "tlt", name: "iShares 20+ Year Treasury Bond ETF", market: "US", region: "United States", assetClass: "Bond", styleFactor: "Defensive", theme: "Not Applicable" },
     { ticker: "GLD", yahoo: "gld", name: "SPDR Gold Shares", market: "US", region: "Global", assetClass: "Alternative", styleFactor: "Defensive", theme: "Not Applicable" },
     { ticker: "BIL", yahoo: "bil", name: "SPDR Bloomberg 1-3 Month T-Bill ETF", market: "US", region: "United States", assetClass: "Cash & Cash-like", styleFactor: "Defensive", theme: "Not Applicable" },
   ],
@@ -290,7 +293,7 @@ async function fetchYahooSeries(symbol, startDate, endDate, minimumRows = 30) {
 
 function eodhdSymbolForItem(item) {
   const symbol = String(item.yahoo || item.ticker || "").toUpperCase();
-  if (symbol.endsWith(".T")) return `${symbol.slice(0, -2)}.TSE`;
+  if (unsupportedEodhdMarketReasons.has(item.market)) return "";
   if (symbol.endsWith(".SS")) return `${symbol.slice(0, -3)}.SHG`;
   if (symbol.endsWith(".SZ")) return `${symbol.slice(0, -3)}.SHE`;
   if (symbol.endsWith(".HK")) return symbol;
@@ -333,9 +336,11 @@ function selectedEodhdTickers() {
   const applyCallLimit = (tickers) => eodhdMaxCallsPerRun === null
     ? tickers
     : tickers.slice(0, eodhdMaxCallsPerRun);
-  if (configured.length) return new Set(applyCallLimit(configured));
+  const supportedItems = engineConfig.priceTickers.filter((item) => !unsupportedEodhdMarketReasons.has(item.market));
+  const supportedTickers = new Set(supportedItems.map((item) => item.ticker));
+  if (configured.length) return new Set(applyCallLimit(configured.filter((ticker) => supportedTickers.has(ticker))));
   const proxyYahooSymbols = new Set(engineConfig.statisticsProxies.map((item) => item.yahoo.toUpperCase()));
-  return new Set(applyCallLimit([...engineConfig.priceTickers]
+  return new Set(applyCallLimit([...supportedItems]
     .sort((left, right) => Number(proxyYahooSymbols.has(right.yahoo.toUpperCase()))
       - Number(proxyYahooSymbols.has(left.yahoo.toUpperCase())))
     .map((item) => item.ticker)));
@@ -344,12 +349,6 @@ function selectedEodhdTickers() {
 function previousCalendarDate(dateText, days) {
   const date = new Date(`${dateText}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
-
-function nextCalendarDate(dateText, days) {
-  const date = new Date(`${dateText}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
@@ -594,6 +593,9 @@ function buildMarketStatisticsCsv(seriesByProxy) {
 }
 
 async function main() {
+  if (!eodhdEnabled) {
+    throw new Error("EODHD paid mode requires PUBLIC_DATA_PROVIDER=eodhd and a configured EODHD_API_TOKEN");
+  }
   await mkdir(outputDir, { recursive: true });
   const files = {
     historicalPrices: join(outputDir, "auto_historical_prices.csv"),
@@ -605,66 +607,49 @@ async function main() {
   const priceSeries = {};
   const refreshes = [];
   const warnings = [];
+  const retainedExternalExceptions = [];
   const eodhdTickers = selectedEodhdTickers();
   let eodhdCallsUsed = 0;
 
   for (const item of engineConfig.priceTickers) {
     const prior = cached.seriesByTicker[item.ticker] || [];
     const firstCachedDate = prior[0]?.date || "";
-    const cacheStartCutoff = nextCalendarDate(engineConfig.startDate, cacheStartGraceDays);
     const hasCachedHistory = prior.length >= 30;
-    const hasFullCachedHistory = prior.length >= 30 && firstCachedDate && firstCachedDate <= cacheStartCutoff;
-    const useIncrementalRefresh = hasCachedHistory && hasFullCachedHistory;
+    const useIncrementalRefresh = !forceFullRefresh && hasCachedHistory;
     const fetchStartDate = useIncrementalRefresh
       ? [engineConfig.startDate, previousCalendarDate(prior[prior.length - 1].date, cacheRefreshDays)].sort().at(-1)
       : engineConfig.startDate;
     let fresh = [];
     let retainedCacheAfterError = false;
-    let provider = "Yahoo Finance";
-    let providerSymbol = item.yahoo.toUpperCase();
+    const eodhdUnavailableReason = unsupportedEodhdMarketReasons.get(item.market) || "";
+    let provider = "EODHD";
+    let providerSymbol = eodhdSymbolForItem(item);
     let mode = useIncrementalRefresh ? "incremental" : "full-history";
     try {
       if (eodhdTickers.has(item.ticker)) {
-        provider = "EODHD";
-        providerSymbol = eodhdSymbolForItem(item);
         eodhdCallsUsed += 1;
-        const eodhdStartDate = eodhdFreeMode
-          ? [fetchStartDate, previousCalendarDate(engineConfig.endDate, 370)].sort().at(-1)
-          : fetchStartDate;
-        fresh = await fetchEodhdSeries(providerSymbol, eodhdStartDate, engineConfig.endDate, 0);
-        mode = useIncrementalRefresh
-          ? "eodhd-incremental"
-          : (eodhdFreeMode ? "eodhd-free-history" : "eodhd-full-history");
-        if (!hasFullCachedHistory) {
-          if (!yahooFallbackEnabled) {
-            if (fresh.length < 30) throw new Error(`EODHD free history is insufficient for uncached ${item.ticker}`);
-          } else {
-            const yahooHistory = await fetchYahooSeries(item.yahoo, engineConfig.startDate, engineConfig.endDate, 30);
-            fresh = mergeSeries(yahooHistory, fresh);
-            provider = "EODHD + Yahoo history fallback";
-            mode = "eodhd-with-yahoo-history";
-          }
-        }
-      } else {
+        fresh = await fetchEodhdSeries(providerSymbol, fetchStartDate, engineConfig.endDate, useIncrementalRefresh ? 0 : 30);
+        mode = useIncrementalRefresh ? "eodhd-incremental" : "eodhd-full-history";
+      } else if (eodhdUnavailableReason && yahooTokyoExceptionEnabled) {
+        provider = yahooTokyoSourceName;
+        providerSymbol = item.yahoo.toUpperCase();
         fresh = await fetchYahooSeries(item.yahoo, fetchStartDate, engineConfig.endDate, useIncrementalRefresh ? 0 : 30);
+        mode = useIncrementalRefresh ? "yahoo-tokyo-exception-incremental" : "yahoo-tokyo-exception-full-history";
+        retainedExternalExceptions.push({
+          ticker: item.ticker,
+          provider,
+          reason: eodhdUnavailableReason,
+          assessment: "Usable for demonstration and continuity, but an unofficial public endpoint is not recommended as the sole production source.",
+        });
+      } else if (eodhdUnavailableReason) {
+        throw new Error(`${item.ticker} is not covered by EODHD and the explicit Tokyo exception is disabled`);
+      } else {
+        throw new Error(`${item.ticker} was not selected within the configured EODHD call limit`);
       }
     } catch (error) {
       warnings.push(`${item.ticker}: ${error.message}.`);
-      if (provider.startsWith("EODHD") && yahooFallbackEnabled) {
-        try {
-          fresh = await fetchYahooSeries(item.yahoo, fetchStartDate, engineConfig.endDate, useIncrementalRefresh ? 0 : 30);
-          provider = "Yahoo Finance fallback";
-          providerSymbol = item.yahoo.toUpperCase();
-          mode = useIncrementalRefresh ? "yahoo-fallback-incremental" : "yahoo-fallback-full-history";
-        } catch (fallbackError) {
-          warnings.push(`${item.ticker}: ${fallbackError.message}.`);
-          if (!hasCachedHistory) throw fallbackError;
-          retainedCacheAfterError = true;
-        }
-      } else {
-        if (!hasCachedHistory) throw error;
-        retainedCacheAfterError = true;
-      }
+      if (!hasCachedHistory) throw error;
+      retainedCacheAfterError = true;
       if (retainedCacheAfterError) warnings.push(`${item.ticker}: cached history retained.`);
     }
     priceSeries[item.ticker] = retainedCacheAfterError
@@ -673,7 +658,7 @@ async function main() {
     refreshes.push({
       ticker: item.ticker,
       yahoo: item.yahoo.toUpperCase(),
-      eodhd: eodhdSymbolForItem(item),
+      eodhd: eodhdSymbolForItem(item) || null,
       provider: retainedCacheAfterError ? "Cache" : provider,
       providerSymbol,
       mode: retainedCacheAfterError ? "cached-retained" : mode,
@@ -701,24 +686,29 @@ async function main() {
     sourceUrl,
     provider: {
       preferred: preferredProvider,
-      active: eodhdEnabled ? "eodhd" : "yahoo",
+      active: "eodhd",
       eodhdConfigured: Boolean(eodhdApiToken),
-      eodhdFreeMode,
+      planMode: "paid-eod-historical-all-world",
       eodhdCallBudget: eodhdMaxCallsPerRun,
       eodhdCallsUsed,
-      yahooFallbackEnabled,
+      genericYahooFallbackEnabled: false,
+      yahooTokyoExceptionEnabled,
+      forceFullRefresh,
       tokenStoredInManifest: false,
     },
     startDate: engineConfig.startDate,
     endDate: engineConfig.endDate,
     cache: {
-      strategy: `Use existing price history and refresh the last ${cacheRefreshDays} calendar days. New tickers receive a one-time full history download.`,
+      strategy: forceFullRefresh
+        ? "Replace all configured price histories from their approved providers."
+        : `Use existing price history and refresh the last ${cacheRefreshDays} calendar days. New tickers receive a one-time full history download.`,
       previousLastDate: cached.lastDate || null,
       cachedRowsBefore: cached.rowCount,
       incrementalTickers: refreshes.filter((item) => item.mode.includes("incremental")).length,
       fullHistoryTickers: refreshes.filter((item) => item.mode.includes("full-history") || item.mode.includes("history")).length,
       refreshes,
       warnings,
+      retainedExternalExceptions,
     },
     methodology: {
       priceProxies: {

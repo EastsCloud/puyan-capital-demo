@@ -1,26 +1,27 @@
 # Market Data Source Registry Check Result
 
-Generated at: 2026-07-24T10:05:23.989Z
+Generated at: 2026-07-26T09:04:26.707Z
 
 | Status | Check | Detail |
 | --- | --- | --- |
-| PASS | Registry has version | 2026-07-24.1 |
+| PASS | Registry has version | 2026-07-26.1 |
 | PASS | Registry lists public, fallback, and planned vendor sources | 7 source(s) |
 | PASS | EODHD personal test source is registered | eodhd-eod-adjusted-close |
-| PASS | Public price source is registered | yahoo-chart-adjusted-close |
+| PASS | Tokyo-only public price exception is registered | yahoo-chart-adjusted-close |
+| PASS | Yahoo use is restricted to the Tokyo exception | retained_tokyo_exception |
 | PASS | Manual fallback source is registered | administrator-manual-market-data |
 | PASS | Future paid vendor interface is registered | future-institutional-market-data-vendor |
 | PASS | Unique source id: eodhd-eod-adjusted-close | eodhd-eod-adjusted-close |
 | PASS | Priority configured: eodhd-eod-adjusted-close | 5 |
 | PASS | Usage configured: eodhd-eod-adjusted-close | 4 use(s) |
-| PASS | Refresh cadence configured: eodhd-eod-adjusted-close | manual or scheduled end-of-day refresh within the configured per-run call budget |
-| PASS | Fallback configured: eodhd-eod-adjusted-close | Retain the existing cached history and use the Yahoo public fallback when the personal quota, symbol entitlement, or history range is insufficient. |
+| PASS | Refresh cadence configured: eodhd-eod-adjusted-close | manual or scheduled end-of-day refresh within the EODHD account quota |
+| PASS | Fallback configured: eodhd-eod-adjusted-close | Retain the last successful cache when an EODHD-supported ticker fails. Do not silently substitute another provider. |
 | PASS | Owning file configured: eodhd-eod-adjusted-close | scripts/public_data_engine.mjs and local EODHD_API_TOKEN environment variable |
 | PASS | Unique source id: yahoo-chart-adjusted-close | yahoo-chart-adjusted-close |
 | PASS | Priority configured: yahoo-chart-adjusted-close | 10 |
-| PASS | Usage configured: yahoo-chart-adjusted-close | 5 use(s) |
-| PASS | Refresh cadence configured: yahoo-chart-adjusted-close | annual package run with seven-day incremental cache refresh |
-| PASS | Fallback configured: yahoo-chart-adjusted-close | Upload administrator-approved market statistics CSV if the public endpoint is unavailable. |
+| PASS | Usage configured: yahoo-chart-adjusted-close | 3 use(s) |
+| PASS | Refresh cadence configured: yahoo-chart-adjusted-close | seven-day incremental cache refresh only for the configured Tokyo-listed exceptions |
+| PASS | Fallback configured: yahoo-chart-adjusted-close | Retain the last successful cache or upload an administrator-approved Tokyo market-data file. |
 | PASS | Owning file configured: yahoo-chart-adjusted-close | scripts/public_data_engine.mjs |
 | PASS | Unique source id: philadelphia-fed-spf-cpi | philadelphia-fed-spf-cpi |
 | PASS | Priority configured: philadelphia-fed-spf-cpi | 20 |
@@ -52,7 +53,7 @@ Generated at: 2026-07-24T10:05:23.989Z
 | PASS | Refresh cadence configured: future-institutional-market-data-vendor | daily for price data and annual for reference package approval |
 | PASS | Fallback configured: future-institutional-market-data-vendor | Use the administrator-approved CSV interface until a paid vendor is selected. |
 | PASS | Owning file configured: future-institutional-market-data-vendor | future data adapter |
-| PASS | Manifest source name matches active registry provider | EODHD end-of-day adjusted close with cached history and Yahoo Finance fallback / EODHD end-of-day adjusted close |
+| PASS | Manifest source name matches active registry provider | EODHD end-of-day adjusted close; Yahoo Finance public chart adjusted close (Tokyo-only exception) retained only where EODHD has no Tokyo exchange coverage / EODHD end-of-day adjusted close |
 | PASS | Manifest source URL matches active registry endpoint | https://eodhd.com/api/eod/ |
 | PASS | Annual reference package policy is explicit | Run once at the start of the investment year, then refresh only if the committee requests a new approved package. |
 | PASS | Monthly rebalance check policy is explicit | Run monthly; do not trigger trade workflow between monthly checks unless the policy is changed by the administrator. |
