@@ -13,6 +13,7 @@
     "test:backend": "node tests/run_backend_checks.mjs",
     "test:e2e": "node tests/run_e2e_workflow_checks.mjs",
     "test:data-public": "node tests/run_public_data_engine_checks.mjs",
+    "test:data-live": "node tests/run_live_public_data_verification.mjs",
     "test:data-sources": "node tests/run_market_data_source_registry_checks.mjs",
     "test:sqlite-live": "node --no-warnings tests/run_sqlite_live_store_checks.mjs",
     "test:sqlite": "node --no-warnings tests/run_sqlite_snapshot_checks.mjs",

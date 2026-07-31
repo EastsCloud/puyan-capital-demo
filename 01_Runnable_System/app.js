@@ -471,6 +471,35 @@ const marketBetaBenchmarkConfig = {
 const el = (id) => document.getElementById(id);
 const percent = (value) => `${Number(value || 0).toFixed(2)}%`;
 const percentOrNoData = (value) => Number.isFinite(Number(value)) ? percent(value) : "No data";
+let globalLoadingDepth = 1;
+let initialLoadingFinished = false;
+
+function beginGlobalLoading(message = "Loading data...") {
+  globalLoadingDepth += 1;
+  const overlay = el("globalLoadingOverlay");
+  const messageNode = el("globalLoadingMessage");
+  if (messageNode) messageNode.textContent = message;
+  if (overlay) {
+    overlay.hidden = false;
+    overlay.setAttribute("aria-busy", "true");
+  }
+}
+
+function endGlobalLoading() {
+  globalLoadingDepth = Math.max(0, globalLoadingDepth - 1);
+  if (globalLoadingDepth > 0) return;
+  const overlay = el("globalLoadingOverlay");
+  if (overlay) {
+    overlay.hidden = true;
+    overlay.setAttribute("aria-busy", "false");
+  }
+}
+
+function finishInitialLoading() {
+  if (initialLoadingFinished) return;
+  initialLoadingFinished = true;
+  endGlobalLoading();
+}
 
 function backendBaseUrl() {
   if (backendState.baseUrl) return backendState.baseUrl;
@@ -545,20 +574,31 @@ function applyBackendUser(user, statusMessage) {
 }
 
 async function backendRequest(path, options = {}) {
+  const {
+    loadingMessage = "Loading system data...",
+    suppressLoading = false,
+    headers: optionHeaders = {},
+    ...requestOptions
+  } = options;
   const headers = {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
+    ...optionHeaders,
   };
   if (backendState.sessionId) headers["x-session-id"] = backendState.sessionId;
-  const response = await fetch(`${backendBaseUrl()}${path}`, {
-    ...options,
-    headers,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.error || `Backend request failed with status ${response.status}`);
+  if (!suppressLoading) beginGlobalLoading(loadingMessage);
+  try {
+    const response = await fetch(`${backendBaseUrl()}${path}`, {
+      ...requestOptions,
+      headers,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || `Backend request failed with status ${response.status}`);
+    }
+    return payload;
+  } finally {
+    if (!suppressLoading) endGlobalLoading();
   }
-  return payload;
 }
 
 function backendUserExistsLocally(user) {
@@ -3661,15 +3701,55 @@ async function continueToRoleLogin() {
 }
 
 function openDecisionLogin() {
-  el("gateDecisionLoginPassword").value = "";
   showAuthScreen("decisionLoginScreen");
   setAuthGateStatus("Decision Committee login page opened.", true);
+  window.setTimeout(() => el("gateDecisionLoginPassword")?.focus(), 0);
 }
 
 function openExecutionLogin() {
-  el("gateExecutionLoginPassword").value = "";
   showAuthScreen("executionLoginScreen");
   setAuthGateStatus("Execution Team login page opened.", true);
+  window.setTimeout(() => el("gateExecutionLoginPassword")?.focus(), 0);
+}
+
+async function resetDemoDatabaseFromLogin() {
+  const confirmed = window.confirm(
+    "Reset the demo database?\n\nThis permanently removes current users, approvals, portfolios, imports, execution records, and audit history. External environment variables and generated market-data files are not deleted.",
+  );
+  if (!confirmed) return;
+
+  const password = window.prompt("Enter the System Administrator password to confirm the demo database reset:");
+  if (password === null) return;
+  if (!password) {
+    setAuthGateStatus("System Administrator password is required before resetting the demo database.", false);
+    return;
+  }
+
+  try {
+    const loginResult = await backendRequest("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ userId: "admin-1", password }),
+      loadingMessage: "Verifying administrator access...",
+    });
+    backendState.sessionId = loginResult.session.id;
+    backendState.user = loginResult.user;
+    await backendRequest("/api/demo/reset", {
+      method: "POST",
+      body: JSON.stringify({ confirmation: "RESET DEMO DATABASE" }),
+      loadingMessage: "Resetting the demo database...",
+    });
+    try {
+      localStorage.removeItem(backendStorageKey);
+      localStorage.removeItem(userCredentialStorageKey);
+    } catch {
+      // The database reset has already completed; browser storage cleanup is best-effort.
+    }
+    window.alert("Demo database reset completed. The application will reload with the packaged default accounts.");
+    window.location.reload();
+  } catch (error) {
+    clearBackendSession();
+    setAuthGateStatus(`Demo database reset failed. ${error.message}`, false);
+  }
 }
 
 function backToRoleSelection() {
@@ -11401,6 +11481,7 @@ async function runPublicDataEngine() {
     const result = await backendRequest("/api/public-data/run", {
       method: "POST",
       body: JSON.stringify({}),
+      loadingMessage: "Fetching and calculating annual public market data...",
     });
     const outputs = result.publicDataEngine.outputs;
     const historicalPriceText = await readSampleCsv(outputs.historicalPrices);
@@ -13404,6 +13485,7 @@ el("authGate").addEventListener("click", handleAuthGateClick);
 el("openSystemAdminLoginButton").addEventListener("click", openAdminLogin);
 el("openSystemDecisionLoginButton").addEventListener("click", openDecisionLogin);
 el("openSystemExecutionLoginButton").addEventListener("click", openExecutionLogin);
+el("demoResetDatabaseButton").addEventListener("click", resetDemoDatabaseFromLogin);
 el("unlockUserSetupButton").addEventListener("click", unlockUserSetup);
 el("continueToRoleLoginButton").addEventListener("click", continueToRoleLogin);
 el("backToAdminLoginButton").addEventListener("click", backToAdminLogin);
@@ -13411,8 +13493,14 @@ el("openDecisionLoginButton").addEventListener("click", openDecisionLogin);
 el("openExecutionLoginButton").addEventListener("click", openExecutionLogin);
 el("decisionLoginBackButton").addEventListener("click", backToRoleSelection);
 el("executionLoginBackButton").addEventListener("click", backToRoleSelection);
-el("enterDecisionSystemButton").addEventListener("click", () => enterControlCenter("decision"));
-el("enterExecutionSystemButton").addEventListener("click", () => enterControlCenter("execution"));
+el("decisionLoginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  enterControlCenter("decision");
+});
+el("executionLoginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  enterControlCenter("execution");
+});
 el("saveSelfProfileButton").addEventListener("click", saveSelfProfile);
 el("nextTargetReturnButton").addEventListener("click", () => setActiveWorkflowPage(profileNextWorkflowPage()));
 el("previousWorkflowButton").addEventListener("click", () => moveWorkflowStep(-1));
@@ -13718,5 +13806,12 @@ syncPrincipalDisplay();
 calculate({ resetManualTarget: true });
 renderEquityValuePanels();
 updateBackendWorkflowStatus();
-restoreBackendSession().finally(() => hydrateRoleUsersFromBackend());
+const initialBackendHydration = restoreBackendSession().finally(() => hydrateRoleUsersFromBackend());
+const finishLoadingAfterHydration = () => initialBackendHydration.finally(finishInitialLoading);
+if (document.readyState === "complete") {
+  finishLoadingAfterHydration();
+} else {
+  window.addEventListener("load", finishLoadingAfterHydration, { once: true });
+}
+window.setTimeout(finishInitialLoading, 20_000);
 setupHoverRevealUi();

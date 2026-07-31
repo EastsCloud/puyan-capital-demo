@@ -266,6 +266,19 @@ try {
   assert(updatedCommitteeUser?.name === "will_updated", "Database persists profile name update", updatedCommitteeUser?.name);
   assert(Boolean(updatedCommitteeUser?.passwordHash), "Database persists profile password hash", updatedCommitteeUser?.passwordHash.slice(0, 10));
 
+  expectBlocked("Decision committee cannot reset demo database", () => {
+    store.resetDemoDatabase(committee1.session.id, "RESET DEMO DATABASE");
+  });
+  const resetResult = store.resetDemoDatabase(admin.session.id, "RESET DEMO DATABASE");
+  assert(resetResult.reset === true, "Administrator can reset demo database", resetResult.message);
+  const resetDb = JSON.parse(readFileSync(dbPath, "utf8"));
+  assert(resetDb.users.length === 3, "Demo reset restores packaged role accounts", `${resetDb.users.length} users`);
+  assert(resetDb.targetPackages.length === 0 && resetDb.portfolios.length === 0 && resetDb.imports.length === 0,
+    "Demo reset clears operational workflow records", "targets, portfolios, and imports cleared");
+  assert(resetDb.sessions.length === 0, "Demo reset invalidates existing sessions", "no active sessions");
+  assert(resetDb.auditLog.some((row) => row.action === "Reset demo database" && row.result === "Allowed"),
+    "Demo reset records a new audit event", "allowed reset audit found");
+
   const reportPath = writeReport();
   console.log(`Backend checks passed: ${results.length} checks`);
   console.log(`Result file: ${reportPath}`);

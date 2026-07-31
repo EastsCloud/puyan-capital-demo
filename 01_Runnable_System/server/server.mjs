@@ -348,6 +348,9 @@ async function handleApi(request, response) {
   if (request.method === "GET" && request.url === "/api/session") {
     return sendJson(response, 200, store.sessionInfo(sessionId));
   }
+  if (request.method === "POST" && request.url === "/api/demo/reset") {
+    return sendJson(response, 200, store.resetDemoDatabase(sessionId, body.confirmation || ""));
+  }
   if (request.method === "GET" && request.url === "/api/users") {
     return sendJson(response, 200, { users: store.listUsers(sessionId) });
   }

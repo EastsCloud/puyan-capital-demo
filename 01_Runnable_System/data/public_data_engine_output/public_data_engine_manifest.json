@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-26T09:04:13.215Z",
+  "generatedAt": "2026-07-30T12:45:31.645Z",
   "sourceName": "EODHD end-of-day adjusted close; Yahoo Finance public chart adjusted close (Tokyo-only exception) retained only where EODHD has no Tokyo exchange coverage",
   "sourceUrl": "https://eodhd.com/api/eod/",
   "provider": {
@@ -15,7 +15,7 @@
     "tokenStoredInManifest": false
   },
   "startDate": "2016-01-01",
-  "endDate": "2026-07-26",
+  "endDate": "2026-07-30",
   "cache": {
     "strategy": "Use existing price history and refresh the last 7 calendar days. New tickers receive a one-time full history download.",
     "previousLastDate": "2026-07-24",
@@ -34,8 +34,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "SPY",
@@ -48,8 +48,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "QQQ",
@@ -62,8 +62,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "DIA",
@@ -76,8 +76,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "IWM",
@@ -90,8 +90,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "AAPL",
@@ -104,8 +104,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "MSFT",
@@ -118,8 +118,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "NVDA",
@@ -132,8 +132,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "JPM",
@@ -146,8 +146,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "XOM",
@@ -160,8 +160,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "BRK.B",
@@ -174,8 +174,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "AMZN",
@@ -188,8 +188,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "EWJ",
@@ -202,8 +202,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "DXJ",
@@ -216,8 +216,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "7203.T",
@@ -230,8 +230,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "6758.T",
@@ -244,8 +244,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "9984.T",
@@ -258,8 +258,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "8306.T",
@@ -272,8 +272,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "1321.T",
@@ -286,8 +286,8 @@
         "cachedRows": 2599,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2599
+        "refreshedRows": 9,
+        "finalRows": 2603
       },
       {
         "ticker": "1306.T",
@@ -300,8 +300,8 @@
         "cachedRows": 2600,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2600
+        "refreshedRows": 9,
+        "finalRows": 2604
       },
       {
         "ticker": "8035.T",
@@ -314,8 +314,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "6857.T",
@@ -328,8 +328,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "6920.T",
@@ -342,8 +342,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "6526.T",
@@ -356,8 +356,8 @@
         "cachedRows": 926,
         "cachedFirstDate": "2022-10-12",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 926
+        "refreshedRows": 9,
+        "finalRows": 930
       },
       {
         "ticker": "9983.T",
@@ -370,8 +370,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "6367.T",
@@ -384,8 +384,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "7011.T",
@@ -398,8 +398,8 @@
         "cachedRows": 2601,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 5,
-        "finalRows": 2601
+        "refreshedRows": 9,
+        "finalRows": 2605
       },
       {
         "ticker": "EWH",
@@ -412,8 +412,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "2800.HK",
@@ -426,8 +426,8 @@
         "cachedRows": 2595,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2595
+        "refreshedRows": 10,
+        "finalRows": 2599
       },
       {
         "ticker": "0700.HK",
@@ -440,8 +440,8 @@
         "cachedRows": 2595,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2595
+        "refreshedRows": 10,
+        "finalRows": 2599
       },
       {
         "ticker": "0005.HK",
@@ -454,8 +454,8 @@
         "cachedRows": 2595,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2595
+        "refreshedRows": 10,
+        "finalRows": 2599
       },
       {
         "ticker": "0388.HK",
@@ -468,8 +468,8 @@
         "cachedRows": 2595,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2595
+        "refreshedRows": 10,
+        "finalRows": 2599
       },
       {
         "ticker": "3690.HK",
@@ -482,8 +482,8 @@
         "cachedRows": 1926,
         "cachedFirstDate": "2018-09-20",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 1926
+        "refreshedRows": 10,
+        "finalRows": 1930
       },
       {
         "ticker": "2828.HK",
@@ -496,8 +496,8 @@
         "cachedRows": 2594,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2594
+        "refreshedRows": 10,
+        "finalRows": 2598
       },
       {
         "ticker": "9988.HK",
@@ -510,8 +510,8 @@
         "cachedRows": 1636,
         "cachedFirstDate": "2019-11-26",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 1636
+        "refreshedRows": 10,
+        "finalRows": 1640
       },
       {
         "ticker": "1810.HK",
@@ -524,8 +524,8 @@
         "cachedRows": 1979,
         "cachedFirstDate": "2018-07-09",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 1979
+        "refreshedRows": 10,
+        "finalRows": 1983
       },
       {
         "ticker": "2318.HK",
@@ -538,8 +538,8 @@
         "cachedRows": 2595,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2595
+        "refreshedRows": 10,
+        "finalRows": 2599
       },
       {
         "ticker": "1398.HK",
@@ -552,8 +552,8 @@
         "cachedRows": 2595,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2595
+        "refreshedRows": 10,
+        "finalRows": 2599
       },
       {
         "ticker": "ASHR",
@@ -566,8 +566,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "KBA",
@@ -580,8 +580,8 @@
         "cachedRows": 2637,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2637
+        "refreshedRows": 9,
+        "finalRows": 2640
       },
       {
         "ticker": "510300.SS",
@@ -594,8 +594,8 @@
         "cachedRows": 2564,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2564
+        "refreshedRows": 10,
+        "finalRows": 2568
       },
       {
         "ticker": "600519.SS",
@@ -608,8 +608,8 @@
         "cachedRows": 2562,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2562
+        "refreshedRows": 10,
+        "finalRows": 2566
       },
       {
         "ticker": "300750.SZ",
@@ -622,8 +622,8 @@
         "cachedRows": 1971,
         "cachedFirstDate": "2018-06-11",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 1971
+        "refreshedRows": 10,
+        "finalRows": 1975
       },
       {
         "ticker": "601318.SS",
@@ -636,8 +636,8 @@
         "cachedRows": 2564,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2564
+        "refreshedRows": 10,
+        "finalRows": 2568
       },
       {
         "ticker": "000001.SZ",
@@ -650,8 +650,8 @@
         "cachedRows": 2562,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2562
+        "refreshedRows": 10,
+        "finalRows": 2566
       },
       {
         "ticker": "159915.SZ",
@@ -664,8 +664,8 @@
         "cachedRows": 2563,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2563
+        "refreshedRows": 10,
+        "finalRows": 2567
       },
       {
         "ticker": "002594.SZ",
@@ -678,8 +678,8 @@
         "cachedRows": 2562,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2562
+        "refreshedRows": 10,
+        "finalRows": 2566
       },
       {
         "ticker": "688981.SS",
@@ -692,8 +692,8 @@
         "cachedRows": 1461,
         "cachedFirstDate": "2020-07-16",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 1461
+        "refreshedRows": 10,
+        "finalRows": 1465
       },
       {
         "ticker": "600036.SS",
@@ -706,8 +706,8 @@
         "cachedRows": 2562,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2562
+        "refreshedRows": 10,
+        "finalRows": 2566
       },
       {
         "ticker": "000858.SZ",
@@ -720,8 +720,8 @@
         "cachedRows": 2562,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2562
+        "refreshedRows": 10,
+        "finalRows": 2566
       },
       {
         "ticker": "AGG",
@@ -734,8 +734,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "TLT",
@@ -748,8 +748,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "GLD",
@@ -762,8 +762,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       },
       {
         "ticker": "BIL",
@@ -776,8 +776,8 @@
         "cachedRows": 2654,
         "cachedFirstDate": "2016-01-04",
         "requiredStartDate": "2016-01-01",
-        "refreshedRows": 6,
-        "finalRows": 2654
+        "refreshedRows": 9,
+        "finalRows": 2657
       }
     ],
     "warnings": [],
@@ -906,15 +906,15 @@
   },
   "outputs": {
     "historicalPrices": {
-      "path": "E:\\Investment Management Tool\\Puyan\\01_Runnable_System\\data\\public_data_engine_output\\auto_historical_prices.csv",
-      "rows": 2747
+      "path": "e:\\Investment Management Tool\\Puyan\\01_Runnable_System\\data\\public_data_engine_output\\auto_historical_prices.csv",
+      "rows": 2751
     },
     "tickerUniverse": {
-      "path": "E:\\Investment Management Tool\\Puyan\\01_Runnable_System\\data\\public_data_engine_output\\auto_ticker_universe.csv",
+      "path": "e:\\Investment Management Tool\\Puyan\\01_Runnable_System\\data\\public_data_engine_output\\auto_ticker_universe.csv",
       "rows": 54
     },
     "marketStatistics": {
-      "path": "E:\\Investment Management Tool\\Puyan\\01_Runnable_System\\data\\public_data_engine_output\\auto_market_statistics.csv",
+      "path": "e:\\Investment Management Tool\\Puyan\\01_Runnable_System\\data\\public_data_engine_output\\auto_market_statistics.csv",
       "rows": 21
     }
   }

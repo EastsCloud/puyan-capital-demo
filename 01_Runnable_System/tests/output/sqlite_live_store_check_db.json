@@ -1,8 +1,8 @@
 {
   "meta": {
     "schemaVersion": 4,
-    "createdAt": "2026-07-26T09:04:26.789Z",
-    "updatedAt": "2026-07-26T09:04:26.792Z"
+    "createdAt": "2026-07-30T10:34:09.812Z",
+    "updatedAt": "2026-07-30T10:34:09.815Z"
   },
   "users": [
     {
@@ -12,7 +12,7 @@
       "role": "User Admin",
       "active": true,
       "passwordHash": "acc505a1a9d9d3cfd7a9f2cc7237dc77a25aafc74502bcef541a79b3192e9fb3",
-      "passwordUpdatedAt": "2026-07-26T09:04:26.789Z"
+      "passwordUpdatedAt": "2026-07-30T10:34:09.812Z"
     },
     {
       "id": "committee-1",
@@ -21,7 +21,7 @@
       "role": "Decision Approver",
       "active": true,
       "passwordHash": "9a927a57a37a091e7e012f4ab2e2f2a8d33b35d69b107592fd2c1682e7947689",
-      "passwordUpdatedAt": "2026-07-26T09:04:26.789Z"
+      "passwordUpdatedAt": "2026-07-30T10:34:09.812Z"
     },
     {
       "id": "execution-1",
@@ -30,14 +30,14 @@
       "role": "Execution Approver",
       "active": true,
       "passwordHash": "7eba83d2632b4787556c09c50430d5d737cf5c80960027b287ee40e64a497a1e",
-      "passwordUpdatedAt": "2026-07-26T09:04:26.789Z"
+      "passwordUpdatedAt": "2026-07-30T10:34:09.812Z"
     }
   ],
   "sessions": [
     {
-      "id": "164701a2-6b12-4844-9d85-b150d3dbdadd",
+      "id": "b527cf55-d45a-4adc-b657-da20b2bde93b",
       "userId": "admin-1",
-      "createdAt": "2026-07-26T09:04:26.791Z",
+      "createdAt": "2026-07-30T10:34:09.815Z",
       "active": true
     }
   ],
@@ -54,8 +54,8 @@
   },
   "auditLog": [
     {
-      "id": "bc5b46dc-877b-475d-b0a8-42d1b65f4191",
-      "time": "2026-07-26T09:04:26.791Z",
+      "id": "15630499-bbc0-411e-80a7-a4cf33805de8",
+      "time": "2026-07-30T10:34:09.815Z",
       "actorId": "admin-1",
       "actorName": "system_admin",
       "actorGroup": "System Administrator",

@@ -219,6 +219,11 @@ function checkWorkflowControls() {
     "openSystemAdminLoginButton",
     "openSystemDecisionLoginButton",
     "openSystemExecutionLoginButton",
+    "demoResetDatabaseButton",
+    "globalLoadingOverlay",
+    "globalLoadingMessage",
+    "decisionLoginForm",
+    "executionLoginForm",
     "workflowNav",
     "workflowStatusOverview",
     "workflowOverallStatus",
@@ -437,11 +442,16 @@ function checkFrontendBackendWiring() {
     ["restoreBackendSession", "backend session restore function"],
     ["localStorage", "browser session persistence"],
     ["/api/session", "backend session validation endpoint"],
+    ["/api/demo/reset", "administrator demo database reset endpoint"],
+    ["resetDemoDatabaseFromLogin", "login-page demo reset action"],
+    ["beginGlobalLoading", "blocking loading overlay"],
   ];
 
   for (const [signal, label] of requiredCodeSignals) {
     assert(appJs.includes(signal), `Frontend-backend wiring includes ${label}`, signal);
   }
+  assert(indexHtml.includes('name="password" type="password" autocomplete="current-password"'),
+    "Login forms support the browser password manager", "current-password autocomplete fields");
 }
 
 function checkNonProductionSignals() {

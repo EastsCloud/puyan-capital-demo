@@ -1,11 +1,11 @@
 # Static UI Check Result
 
-Generated at: 2026-07-26T09:04:25.181Z
+Generated at: 2026-07-30T10:34:08.309Z
 
 | Status | Check | Detail |
 | --- | --- | --- |
 | PASS | HTML ids are unique | no duplicates |
-| PASS | All app.js el("id") references exist in index.html | 431 references checked |
+| PASS | All app.js el("id") references exist in index.html | 434 references checked |
 | PASS | Core UI section exists: Annual Target Return | matched one of: Annual Target Return |
 | PASS | Core UI section exists: Target Beta | matched one of: Target Beta / Beta Engine |
 | PASS | Core UI section exists: Portfolio Construction | matched one of: Portfolio Construction / Proposed Portfolio |
@@ -151,6 +151,11 @@ Generated at: 2026-07-26T09:04:25.181Z
 | PASS | Required workflow control exists: openSystemAdminLoginButton | control found |
 | PASS | Required workflow control exists: openSystemDecisionLoginButton | control found |
 | PASS | Required workflow control exists: openSystemExecutionLoginButton | control found |
+| PASS | Required workflow control exists: demoResetDatabaseButton | control found |
+| PASS | Required workflow control exists: globalLoadingOverlay | control found |
+| PASS | Required workflow control exists: globalLoadingMessage | control found |
+| PASS | Required workflow control exists: decisionLoginForm | control found |
+| PASS | Required workflow control exists: executionLoginForm | control found |
 | PASS | Required workflow control exists: workflowNav | control found |
 | PASS | Required workflow control exists: workflowStatusOverview | control found |
 | PASS | Required workflow control exists: workflowOverallStatus | control found |
@@ -328,6 +333,10 @@ Generated at: 2026-07-26T09:04:25.181Z
 | PASS | Frontend-backend wiring includes backend session restore function | restoreBackendSession |
 | PASS | Frontend-backend wiring includes browser session persistence | localStorage |
 | PASS | Frontend-backend wiring includes backend session validation endpoint | /api/session |
+| PASS | Frontend-backend wiring includes administrator demo database reset endpoint | /api/demo/reset |
+| PASS | Frontend-backend wiring includes login-page demo reset action | resetDemoDatabaseFromLogin |
+| PASS | Frontend-backend wiring includes blocking loading overlay | beginGlobalLoading |
+| PASS | Login forms support the browser password manager | current-password autocomplete fields |
 | PASS | Backend foundation is present | package.json, server/core.mjs, server/server.mjs |
 | PASS | Backend includes session and permission foundation | login, sessions, requirePermission, auditLog |
 | PASS | Backend default single-security limit is 35% of sleeve | maxSingleSecurityWeight: 35 |

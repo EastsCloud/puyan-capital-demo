@@ -1256,6 +1256,32 @@ export function createStore(dbPath) {
       const user = requireActiveSession(db, sessionId);
       return { user: sanitizeUser(user) };
     },
+    resetDemoDatabase(sessionId, confirmation = "") {
+      const db = load();
+      const actor = requireActiveSession(db, sessionId);
+      if (!actorCan(actor, "admin")) {
+        audit(db, actor, "Reset demo database", "Blocked", "Requires system administrator");
+        save(db);
+        const error = new Error("Permission denied: demo database reset requires system administrator");
+        error.statusCode = 403;
+        throw error;
+      }
+      if (confirmation !== "RESET DEMO DATABASE") {
+        audit(db, actor, "Reset demo database", "Blocked", "Confirmation text mismatch");
+        save(db);
+        const error = new Error("Demo database reset confirmation is invalid");
+        error.statusCode = 400;
+        throw error;
+      }
+      const resetDatabase = defaultDatabase();
+      audit(resetDatabase, actor, "Reset demo database", "Allowed", "All operational demo records restored to packaged defaults");
+      save(resetDatabase);
+      return {
+        reset: true,
+        resetAt: resetDatabase.meta.updatedAt,
+        message: "Demo database restored to packaged defaults",
+      };
+    },
     listUsers(sessionId) {
       return withActor(sessionId, "admin", "List users", (db) => db.users.map(sanitizeUser));
     },

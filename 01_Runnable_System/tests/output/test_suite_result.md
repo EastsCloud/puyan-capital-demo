@@ -1,12 +1,12 @@
 # Test Suite Result
 
-Generated at: 2026-07-26T09:04:28.614Z
+Generated at: 2026-07-30T10:34:11.391Z
 
 | Status | Suite | Detail |
 | --- | --- | --- |
 | PASS | Workflow acceptance test | Acceptance tests passed: 70 checks / Result file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\acceptance_test_result.md |
-| PASS | Static UI wiring check | Static UI checks passed: 349 checks / Result file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\static_ui_check_result.md |
-| PASS | Backend foundation check | Backend checks passed: 52 checks / Result file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\backend_check_result.md |
+| PASS | Static UI wiring check | Static UI checks passed: 358 checks / Result file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\static_ui_check_result.md |
+| PASS | Backend foundation check | Backend checks passed: 58 checks / Result file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\backend_check_result.md |
 | PASS | End-to-end workflow check | E2E workflow checks passed: 21 steps / Report file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\e2e_workflow_result.md / JSON file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\e2e_workflow_result.json |
 | PASS | Ticker replacement plan data check | Ticker replacement plan checks passed: 14 checks |
 | PASS | Public data engine and cache check | Public data engine checks passed: 55 checks / Result file: E:\Investment Management Tool\Puyan\01_Runnable_System\tests\output\public_data_engine_check_result.md |

@@ -25,6 +25,17 @@ npm test
 npm run self-check
 ```
 
+To independently query EODHD and prove that the current annual price and
+statistics outputs are reproducible from external numbers, run:
+
+```bash
+npm run test:data-live
+```
+
+This live verification requires `EODHD_API_TOKEN`, consumes a small number of
+API calls, does not write the token to its report, and is intentionally kept
+separate from the normal offline test suite.
+
 Read `../04_Release_Status/Current_Review_Status_20260723.md` for the scope and date of prior review evidence. Run the current tests before relying on an older status note.
 
 ## Security Note

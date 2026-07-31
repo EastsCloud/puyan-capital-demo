@@ -31,6 +31,54 @@ body {
   text-rendering: geometricPrecision;
 }
 
+.global-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(247, 248, 245, 0.92);
+  backdrop-filter: blur(3px);
+}
+
+.global-loading-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(420px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 28px;
+  text-align: center;
+  box-shadow: 0 12px 38px rgba(4, 13, 7, 0.12);
+}
+
+.global-loading-card small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.global-loading-spinner {
+  width: 38px;
+  height: 38px;
+  border: 4px solid #dce8da;
+  border-top-color: var(--accent-strong);
+  border-radius: 50%;
+  animation: global-loading-spin 800ms linear infinite;
+}
+
+@keyframes global-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-loading-spinner {
+    animation-duration: 1800ms;
+  }
+}
+
 button, input, select { font: inherit; }
 
 input:disabled,
@@ -133,6 +181,26 @@ button:disabled {
 
 .role-login-card > button {
   margin-top: auto;
+}
+
+.demo-reset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.demo-reset-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.demo-reset-row small {
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .login-action-row {
@@ -1535,6 +1603,20 @@ button:active {
   width: 100%;
 }
 
+.danger-button {
+  flex: 0 0 auto;
+  border: 1px solid #efb5b1;
+  background: #fff3f2;
+  color: var(--danger);
+  padding: 0 14px;
+}
+
+.danger-button:hover,
+.danger-button:focus {
+  border-color: var(--danger);
+  background: #ffe7e5;
+}
+
 .secondary-button:hover,
 .secondary-button:focus,
 .primary-button:hover,
@@ -1639,6 +1721,10 @@ button:active {
   }
   .audit-grid { grid-template-columns: 1fr; }
   .workflow-nav { grid-template-columns: 1fr 1fr; }
+  .demo-reset-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 520px) {

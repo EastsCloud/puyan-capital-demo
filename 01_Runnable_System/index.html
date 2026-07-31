@@ -4,9 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Puyan Capital Control Center</title>
-    <link rel="stylesheet" href="./styles.css?v=20260715-teresa-followup-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260730-demo-controls-1" />
   </head>
   <body data-ui-mode="clean">
+    <div class="global-loading-overlay" id="globalLoadingOverlay" role="status" aria-live="polite" aria-busy="true">
+      <div class="global-loading-card">
+        <span class="global-loading-spinner" aria-hidden="true"></span>
+        <strong id="globalLoadingMessage">Loading Puyan Capital Control Center...</strong>
+        <small>Please wait. Actions are temporarily disabled while data is loading.</small>
+      </div>
+    </div>
+
     <section class="login-gate" id="authGate" aria-label="User setup and login">
       <div class="login-panel auth-screen" id="systemLoginScreen">
         <div class="login-heading">
@@ -34,6 +42,13 @@
             <p>Prepare holdings, load data, run backtest/optimization, and record execution actions.</p>
             <button type="button" class="primary-button" id="openSystemExecutionLoginButton" onclick="window.imAuth.show('executionLoginScreen', 'Execution Team login page opened.', 'gateExecutionLoginPassword')">Execution Team Login</button>
           </div>
+        </div>
+        <div class="demo-reset-row">
+          <div>
+            <strong>Demo maintenance</strong>
+            <small>Restore users, approvals, portfolios, imports, and audit records to the packaged demo defaults.</small>
+          </div>
+          <button type="button" class="danger-button" id="demoResetDatabaseButton">Reset Demo Database</button>
         </div>
       </div>
 
@@ -132,20 +147,20 @@
           <h1>Decision Committee Login</h1>
           <p>This role controls annual target approval, market/style allocation, beta and drawdown policy, and committee approvals.</p>
         </div>
-        <div class="role-login-card">
+        <form class="role-login-card" id="decisionLoginForm" autocomplete="on">
           <label class="field compact">
             <span>Username</span>
-            <input id="gateDecisionLoginUser" type="text" value="will" readonly />
+            <input id="gateDecisionLoginUser" name="username" type="text" value="will" autocomplete="username" readonly />
           </label>
           <label class="field compact">
             <span>Password</span>
-            <input id="gateDecisionLoginPassword" type="password" autocomplete="current-password" disabled />
+            <input id="gateDecisionLoginPassword" name="password" type="password" autocomplete="current-password" />
           </label>
           <div class="auth-action-footer">
             <button type="button" class="secondary-button" id="decisionLoginBackButton" onclick="window.imAuth.show('systemLoginScreen', 'System login page opened.')">Back to System Login</button>
-            <button type="button" class="primary-button" id="enterDecisionSystemButton" disabled>Enter Decision Committee Workspace</button>
+            <button type="submit" class="primary-button" id="enterDecisionSystemButton">Enter Decision Committee Workspace</button>
           </div>
-        </div>
+        </form>
       </div>
 
       <div class="login-panel auth-screen" id="executionLoginScreen" hidden>
@@ -154,20 +169,20 @@
           <h1>Execution Team Login</h1>
           <p>This role prepares proposed securities, data imports, backtests, optimization suggestions, and execution records.</p>
         </div>
-        <div class="role-login-card">
+        <form class="role-login-card" id="executionLoginForm" autocomplete="on">
           <label class="field compact">
             <span>Username</span>
-            <input id="gateExecutionLoginUser" type="text" value="will1976" readonly />
+            <input id="gateExecutionLoginUser" name="username" type="text" value="will1976" autocomplete="username" readonly />
           </label>
           <label class="field compact">
             <span>Password</span>
-            <input id="gateExecutionLoginPassword" type="password" autocomplete="current-password" disabled />
+            <input id="gateExecutionLoginPassword" name="password" type="password" autocomplete="current-password" />
           </label>
           <div class="auth-action-footer">
             <button type="button" class="secondary-button" id="executionLoginBackButton" onclick="window.imAuth.show('systemLoginScreen', 'System login page opened.')">Back to System Login</button>
-            <button type="button" class="primary-button" id="enterExecutionSystemButton" disabled>Enter Execution Team Workspace</button>
+            <button type="submit" class="primary-button" id="enterExecutionSystemButton">Enter Execution Team Workspace</button>
           </div>
-        </div>
+        </form>
       </div>
 
       <small id="authGateStatus" class="validation-message auth-status">Select a system role to continue.</small>
@@ -2673,10 +2688,7 @@
           document.querySelectorAll(".auth-screen").forEach((screen) => {
             screen.hidden = screen.id !== screenId;
           });
-          if (passwordId) {
-            const input = document.getElementById(passwordId);
-            if (input) input.value = "";
-          }
+          if (passwordId) document.getElementById(passwordId)?.focus();
           const status = document.getElementById("authGateStatus");
           if (status && message) {
             status.textContent = message;
@@ -2685,6 +2697,6 @@
         },
       };
     </script>
-    <script src="./app.js?v=20260723-normalized-sqlite-professional-report-14"></script>
+    <script src="./app.js?v=20260730-demo-controls-1"></script>
   </body>
 </html>

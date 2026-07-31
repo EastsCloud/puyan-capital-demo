@@ -1,6 +1,6 @@
 # Market Data Source Registry Check Result
 
-Generated at: 2026-07-26T09:04:26.707Z
+Generated at: 2026-07-30T10:34:09.716Z
 
 | Status | Check | Detail |
 | --- | --- | --- |
