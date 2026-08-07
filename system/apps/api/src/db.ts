@@ -20,10 +20,17 @@ export interface DatabasePool {
   end(): Promise<void>;
 }
 
-function normalizeResult(result: { rows: any[]; rowCount?: number | null; affectedRows?: number }): DatabaseResult {
+type RawDatabaseResult = { rows?: any[]; rowCount?: number | null; affectedRows?: number };
+
+function normalizeResult(result: RawDatabaseResult | RawDatabaseResult[]): DatabaseResult {
+  if (Array.isArray(result)) {
+    const lastResult = result.at(-1);
+    return lastResult ? normalizeResult(lastResult) : { rows: [], rowCount: 0 };
+  }
+  const rows = result.rows ?? [];
   return {
-    rows: result.rows,
-    rowCount: result.rowCount ?? (result.rows.length > 0 ? result.rows.length : (result.affectedRows ?? 0)),
+    rows,
+    rowCount: result.rowCount ?? (rows.length > 0 ? rows.length : (result.affectedRows ?? 0)),
   };
 }
 

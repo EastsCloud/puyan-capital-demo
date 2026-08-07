@@ -27,11 +27,11 @@ fe0109556fbc0760bea4916467e1a4a1ac5261f19d042970f6cd51c38eaf344e  ./system/apps/
 a3824eb72d60a5dc41bd33b03d995395741bbb32e1a45bef37825efb3757ed37  ./system/apps/api/src/bootstrap-admin.ts
 28590dd31ee31faec536e20a95346737b47aecaa90d02f0aeaf40aaf7451629a  ./system/apps/api/src/config.ts
 59528e5a11413ae6dd973e8f677a0e81715f0a9e818ea539bebe0ba54b7fcd79  ./system/apps/api/src/credential-crypto.ts
-19ce35ec5fb7120c4e2d0d4a7e8e57553b126f03a4c3898b4d259b8dd1df601b  ./system/apps/api/src/db.ts
+5bb80fd11b1dc2a2bb52e184b46b6ced5a01813eff9281de6e142f9a2bcc62cf  ./system/apps/api/src/db.ts
 1c632182f7508293f1c455e1cab7a8846824ae7db02e726e6336fdc3d6145a5c  ./system/apps/api/src/dev-database.ts
 798683c811f99d13273be2453d5b1e0c0e6c3c475b904b220706538b8cb3d424  ./system/apps/api/src/eodhd.ts
 2a0dc3ce03b13556073f8efeb26adba8f53f42a4698615a86be466c19b8437e9  ./system/apps/api/src/eodhd-client.ts
-4491071460928bb9d80d253d6068b5e6d0bb02ec0f739ae54783af3259451ee6  ./system/apps/api/src/migrate.ts
+e42086d11f6a2df0ec4693060ee29861541fea3dbbe65e29c4b6dbaf954bf609  ./system/apps/api/src/migrate.ts
 e123dd7be7528e0ebdf924ddd70c8dba5acffb3331d78938e4a68b41c887aa95  ./system/apps/api/src/monitoring.ts
 7dfc0d161caae2221e57d291aaa1882a81ebbb93f918532a24ecc86bc5c1160c  ./system/apps/api/src/monitoring-reporting-math.ts
 77dda3893da4186d73dd7f3af3c2cbd6baf774fda9cccd38bdda95ace3c3d4af  ./system/apps/api/src/operational-math.ts

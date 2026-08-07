@@ -15,6 +15,26 @@ await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
 for (const file of files) {
   const exists = await pool.query("SELECT 1 FROM schema_migrations WHERE filename = $1", [file]);
   if (exists.rowCount) continue;
+
+  // A previous production runner could commit the first multi-statement migration
+  // and fail while normalizing the driver's result array, before recording it.
+  // The migration itself is transactional, so the final trigger proves it completed.
+  if (file === "0001_foundation.sql") {
+    const foundation = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'audit_events_no_update'
+          AND NOT tgisinternal
+      ) AS complete
+    `);
+    if (foundation.rows[0]?.complete) {
+      await pool.query("INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING", [file]);
+      process.stdout.write(`Reconciled previously applied ${file}\n`);
+      continue;
+    }
+  }
+
   const sql = await readFile(join(migrationsDirectory, file), "utf8");
   const client = await pool.connect();
   try {
