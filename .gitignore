@@ -1,20 +1,11 @@
-# Local secrets
-01_Runnable_System/.env
-**/.env.local
-**/.env.*.local
-
-# Local databases and SQLite runtime files
-**/*.sqlite
-**/*.sqlite-shm
-**/*.sqlite-wal
-**/*.db
-**/*.db-shm
-**/*.db-wal
-
-# Dependencies, temporary files, and logs
-**/node_modules/
-**/tests/tmp/
-**/*.log
-**/.DS_Store
-**/Thumbs.db
-
+demo-database/
+system/node_modules/
+system/**/node_modules/
+system/**/dist/
+system/.env
+system/**/.env
+system/data/
+system/apps/api/data/
+system/uploads/
+*.log
+*.tsbuildinfo

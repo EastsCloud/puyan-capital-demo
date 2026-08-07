@@ -1,2 +1,0 @@
-TradeDate,SettlementDate,Account,Broker,Action,Ticker,Currency,Quantity,Price,Fees,NetValue,ExternalTradeId
-2026-06-20,2026-06-22,Main Account,Broker A,Buy,VTI,CNY,10,300,0,3000,BRKA-1001

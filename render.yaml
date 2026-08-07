@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: puyan-capital-sg
+    runtime: node
+    region: singapore
+    rootDir: system
+    buildCommand: corepack enable && corepack prepare pnpm@10.13.1 --activate && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm --filter @isater/api migrate && pnpm --filter @isater/api bootstrap-admin && pnpm --filter @isater/api start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.18.0
+      - key: SERVE_WEB
+        value: "true"
+      - key: ENABLE_DEMO_RESET
+        value: "true"
+      - key: WEB_ORIGIN
+        value: https://demo.puyancapital.com
+      - key: DATABASE_URL
+        sync: false
+      - key: EXTERNAL_CREDENTIAL_ENCRYPTION_KEY
+        generateValue: true
+      - key: ISATER_ADMIN_USERNAME
+        sync: false
+      - key: ISATER_ADMIN_DISPLAY_NAME
+        sync: false
+      - key: ISATER_ADMIN_EMAIL
+        sync: false
+      - key: ISATER_ADMIN_PASSWORD
+        sync: false

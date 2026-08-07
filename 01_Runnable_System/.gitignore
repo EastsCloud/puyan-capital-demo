@@ -1,5 +1,0 @@
-.env
-server/data/*.sqlite
-server/data/*.sqlite-*
-tests/tmp/
-
