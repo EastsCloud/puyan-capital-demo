@@ -40,7 +40,7 @@ dec2875744f2c87fa3594fc557804a5b2c5ccad8e116609a90d7e5542f10f5d6  ./system/apps/
 7db30e16977c106e4628ed51d660050c27cb7fa4fe28ca2d4c357440b42121e3  ./system/apps/api/src/parameters.ts
 59d27bab9ee262d611308391c6660392497e3ad8162e9f69e63cdf0b678152dc  ./system/apps/api/src/portfolio.ts
 bc5fbee9ae3d4c6b5010f6b831d4947aa8be1d574079eb9f419593f1dd5d17d6  ./system/apps/api/src/proposed-portfolio.ts
-c4b9d25621a5ba28a83a56010984f8bc957d62f7736ae97f90b7d30b062644f3  ./system/apps/api/src/public-data.ts
+3aa04289d008772528f1b07aaa0df4e41f433459c1b60026116d47ac129510e8  ./system/apps/api/src/public-data.ts
 d7ecfbd052cb4b9de5efc7a9161c46c34752cf333ec3a7c0c6dcc8973adffa4a  ./system/apps/api/src/reporting.ts
 1e673f442d2701e871287add7cc67f8f193502a0e401cebc54a98a15bfe5721a  ./system/apps/api/src/security.ts
 e8358b431feeb1922da75db6d330114b3a01c036b2d81cc776d770bbfb4b12d7  ./system/apps/api/src/server.ts
@@ -60,9 +60,9 @@ f30f912e934ca70dcaa6b3d4070c3e49835a4e5296d3bc0e1d8030123d1d445e  ./system/apps/
 2fe9ddb3e89eee1afaa077e04199e4c4932061b390446a56152166db6f5094d0  ./system/apps/web/index.html
 dfb0093ce0b080b3c7eb12f58fd12e293365268a69a8b23b82bfc68434390ba8  ./system/apps/web/package.json
 435d071dd0dd1de44c4ac35607513f07630e26e0c2f975269ca27de2518c11d4  ./system/apps/web/public/templates/proposed-portfolio-template.csv
-9cc89c2ca977ab0d662bd647c96427190a8122181569ace646aace7cb762f270  ./system/apps/web/src/App.tsx
+b05a10885acf8c54783e3454f9b448ea738965ef7bf6e1d8e276179ac080d422  ./system/apps/web/src/App.tsx
 a6bcae9c4f04d6ff36406b2966379834342b41b08b83ba7bd0334712d6cf87f0  ./system/apps/web/src/main.tsx
-8b9830747a9c02d943c93c526d07c890c8ddb8dfd4e50f2971f8fe922eca69b2  ./system/apps/web/src/styles.css
+c28cb85cd5eb005f8c6c736478712bf60b977148968ffb933d1997f6f700b54c  ./system/apps/web/src/styles.css
 a7266d1c85fa6947c70073256d9a73e4c459e97b0b4ef24b5c48dcab498ef4c5  ./system/apps/web/tsconfig.app.json
 63f8a635ab43c96a202135ba7f4c46a50338620adbfbdb0767d2ed3032cadfa3  ./system/apps/web/tsconfig.json
 444243cbe61f82a61922d4e09843169e0e5c6371f79d992ca6145e1f19fcf216  ./system/apps/web/vite.config.ts

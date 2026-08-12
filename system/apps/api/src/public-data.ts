@@ -381,7 +381,7 @@ export async function registerPublicDataRoutes(app: FastifyInstance): Promise<vo
         await client.query(
           `UPDATE public_data_runs SET status = 'succeeded', source_manifest = $2,
                   recommendation = $3, completed_at = now() WHERE id = $1`,
-          [run.rows[0].id, manifest, recommendationWithParameterAudit],
+          [run.rows[0].id, JSON.stringify(manifest), recommendationWithParameterAudit],
         );
         const nextVersion = await client.query(
           "SELECT COALESCE(max(version), 0)::int + 1 AS version FROM annual_data_packages WHERE workflow_case_id = $1",
@@ -392,7 +392,7 @@ export async function registerPublicDataRoutes(app: FastifyInstance): Promise<vo
             (workflow_case_id, version, as_of_date, scenario, model_version, source_manifest, recommendation, created_by, public_data_run_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
           [workflowId, nextVersion.rows[0].version, recommendation.asOfDate, input.scenario,
-            recommendation.modelVersion, manifest, recommendationWithParameterAudit, user.id, run.rows[0].id],
+            recommendation.modelVersion, JSON.stringify(manifest), recommendationWithParameterAudit, user.id, run.rows[0].id],
         );
         await writeAudit(client, {
           organizationId: user.organizationId, actorUserId: user.id, action: "annual_data.run",
@@ -419,7 +419,7 @@ export async function registerPublicDataRoutes(app: FastifyInstance): Promise<vo
       const sourceErrors = (error as { sourceErrors?: unknown[] }).sourceErrors ?? [{ message: error instanceof Error ? error.message : String(error) }];
       await pool.query(
         "UPDATE public_data_runs SET status = 'failed', error_summary = $2, completed_at = now() WHERE id = $1",
-        [run.rows[0].id, sourceErrors],
+        [run.rows[0].id, JSON.stringify(sourceErrors)],
       );
       const detail = sourceErrors.map((item) => {
         const entry = item as { sourceCode?: string; dataKey?: string; message?: string; attempts?: SourceAttempt[] };
