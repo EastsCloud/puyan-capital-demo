@@ -40,7 +40,7 @@ dec2875744f2c87fa3594fc557804a5b2c5ccad8e116609a90d7e5542f10f5d6  ./system/apps/
 7db30e16977c106e4628ed51d660050c27cb7fa4fe28ca2d4c357440b42121e3  ./system/apps/api/src/parameters.ts
 59d27bab9ee262d611308391c6660392497e3ad8162e9f69e63cdf0b678152dc  ./system/apps/api/src/portfolio.ts
 bc5fbee9ae3d4c6b5010f6b831d4947aa8be1d574079eb9f419593f1dd5d17d6  ./system/apps/api/src/proposed-portfolio.ts
-3aa04289d008772528f1b07aaa0df4e41f433459c1b60026116d47ac129510e8  ./system/apps/api/src/public-data.ts
+bf0dc29dc04aa06fa45424233db08cc420a8467dd68a7137a7869c26a57b3c13  ./system/apps/api/src/public-data.ts
 d7ecfbd052cb4b9de5efc7a9161c46c34752cf333ec3a7c0c6dcc8973adffa4a  ./system/apps/api/src/reporting.ts
 1e673f442d2701e871287add7cc67f8f193502a0e401cebc54a98a15bfe5721a  ./system/apps/api/src/security.ts
 490a8fcbdcb2382d0d57051adc34059e3d81b8ec00be33fe97e86d8e829cfeea  ./system/apps/api/src/server.ts

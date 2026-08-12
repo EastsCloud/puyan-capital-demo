@@ -111,6 +111,25 @@ function normalizeMonthly(points: Array<{ date: string; value: number }>): Month
   return [...byMonth].map(([month, value]) => ({ month, value })).sort((left, right) => left.month.localeCompare(right.month));
 }
 
+async function fetchPublicSource(url: URL | string, timeoutMs: number, attempts = 1): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetch(url, {
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: {
+          Accept: "application/json,text/csv,text/plain;q=0.9,*/*;q=0.8",
+          "User-Agent": "Puyan-Capital-Isater/1.0 public-data-engine",
+        },
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`Source request failed after ${attempts} attempt(s): ${detail}`);
+}
+
 async function fetchFred(source: SourceRow): Promise<FetchResult> {
   if (!source.series_key) throw new Error(`${source.code} has no series key`);
   let body: string;
@@ -122,7 +141,7 @@ async function fetchFred(source: SourceRow): Promise<FetchResult> {
     url.searchParams.set("api_key", config.FRED_API_KEY);
     url.searchParams.set("file_type", "json");
     transportUrl = url.toString().replace(config.FRED_API_KEY, "[configured-key]");
-    const response = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    const response = await fetchPublicSource(url, 12_000, 2);
     if (!response.ok) throw new Error(`FRED returned HTTP ${response.status}`);
     body = await response.text();
     const parsed = JSON.parse(body) as { observations?: Array<{ date: string; value: string }> };
@@ -131,7 +150,7 @@ async function fetchFred(source: SourceRow): Promise<FetchResult> {
     const url = new URL("https://fred.stlouisfed.org/graph/fredgraph.csv");
     url.searchParams.set("id", source.series_key);
     transportUrl = url.toString();
-    const response = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    const response = await fetchPublicSource(url, 12_000, 2);
     if (!response.ok) throw new Error(`FRED public CSV returned HTTP ${response.status}`);
     body = await response.text();
     const lines = body.trim().split(/\r?\n/);
@@ -149,7 +168,7 @@ async function fetchFred(source: SourceRow): Promise<FetchResult> {
 async function fetchHkma(source: SourceRow): Promise<FetchResult> {
   const endpoint = "https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bulletin/financial/capital-market-statistics";
   const url = `${endpoint}?pagesize=1000`;
-  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  const response = await fetchPublicSource(url, 12_000, 1);
   if (!response.ok) throw new Error(`HKMA returned HTTP ${response.status}`);
   const body = await response.text();
   const parsed = JSON.parse(body) as {
@@ -170,7 +189,7 @@ async function fetchHkma(source: SourceRow): Promise<FetchResult> {
 
 async function fetchTaiwanMonthlyIndices(source: SourceRow): Promise<FetchResult> {
   const endpoint = "https://apiservice.mol.gov.tw/OdService/download/A17030000J-000050-1oj";
-  const response = await fetch(endpoint, { signal: AbortSignal.timeout(15_000) });
+  const response = await fetchPublicSource(endpoint, 12_000, 1);
   if (!response.ok) throw new Error(`Taiwan government data API returned HTTP ${response.status}`);
   const body = await response.text();
   const records = JSON.parse(body) as Array<Record<string, string>>;
@@ -229,18 +248,33 @@ async function persistObservations(results: FetchResult[]): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const result of results) {
-      for (const point of result.points) {
-        await client.query(
-          `INSERT INTO market_observations
-            (instrument_key, observation_date, field, value, source_name, source_url, retrieved_at, source_checksum)
-           VALUES ($1, $2, 'monthly_level', $3, $4, $5, now(), $6)
-           ON CONFLICT (instrument_key, observation_date, field, source_name)
-           DO UPDATE SET value = excluded.value, source_url = excluded.source_url,
-                         retrieved_at = excluded.retrieved_at, source_checksum = excluded.source_checksum`,
-          [result.source.code, `${point.month}-01`, point.value, result.source.authority_name, result.source.public_url, result.checksum],
-        );
-      }
+    const observations = results.flatMap((result) => result.points.map((point) => ({
+      instrumentKey: result.source.code,
+      observationDate: `${point.month}-01`,
+      value: point.value,
+      sourceName: result.source.authority_name,
+      sourceUrl: result.source.public_url,
+      checksum: result.checksum,
+    })));
+    const batchSize = 500;
+    for (let offset = 0; offset < observations.length; offset += batchSize) {
+      const batch = observations.slice(offset, offset + batchSize);
+      const values: unknown[] = [];
+      const rows = batch.map((observation, index) => {
+        const base = index * 6;
+        values.push(observation.instrumentKey, observation.observationDate, observation.value,
+          observation.sourceName, observation.sourceUrl, observation.checksum);
+        return `($${base + 1}, $${base + 2}, 'monthly_level', $${base + 3}, $${base + 4}, $${base + 5}, now(), $${base + 6})`;
+      });
+      await client.query(
+        `INSERT INTO market_observations
+          (instrument_key, observation_date, field, value, source_name, source_url, retrieved_at, source_checksum)
+         VALUES ${rows.join(",")}
+         ON CONFLICT (instrument_key, observation_date, field, source_name)
+         DO UPDATE SET value = excluded.value, source_url = excluded.source_url,
+                       retrieved_at = excluded.retrieved_at, source_checksum = excluded.source_checksum`,
+        values,
+      );
     }
     await client.query("COMMIT");
   } catch (error) {
