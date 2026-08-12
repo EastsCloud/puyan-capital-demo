@@ -4,6 +4,7 @@ import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { decryptSecret, encryptSecret } from "./credential-crypto.js";
 import { pool } from "./db.js";
+import { config } from "./config.js";
 import { fetchEodhdPrices } from "./eodhd-client.js";
 export { eodhdSymbol, fetchEodhdPrices } from "./eodhd-client.js";
 
@@ -44,6 +45,32 @@ async function connectionRow(organizationId: string) {
     [organizationId],
   );
   return result.rows[0];
+}
+
+export async function initializeEodhdConnectionsFromEnvironment(): Promise<number> {
+  const apiToken = config.EODHD_API_TOKEN;
+  if (!apiToken) return 0;
+  const encrypted = encryptSecret(apiToken);
+  const administrators = await pool.query(
+    `SELECT DISTINCT ON (organization_id) id, organization_id
+       FROM users
+      WHERE role = 'system_admin' AND status <> 'disabled'
+      ORDER BY organization_id, created_at`,
+  );
+  let initialized = 0;
+  for (const admin of administrators.rows) {
+    const result = await pool.query(
+      `INSERT INTO external_data_connections
+        (organization_id, provider_code, display_name, enabled, credential_ciphertext, credential_iv,
+         credential_auth_tag, token_last_four, created_by, updated_by)
+       VALUES ($1, 'eodhd', 'EODHD', true, $2, $3, $4, $5, $6, $6)
+       ON CONFLICT (organization_id, provider_code) DO NOTHING
+       RETURNING id`,
+      [admin.organization_id, encrypted.ciphertext, encrypted.iv, encrypted.authTag, apiToken.slice(-4), admin.id],
+    );
+    initialized += result.rowCount;
+  }
+  return initialized;
 }
 
 export async function getActiveEodhdToken(organizationId: string): Promise<string | null> {

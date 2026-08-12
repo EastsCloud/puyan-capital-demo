@@ -23,6 +23,8 @@ services:
         sync: false
       - key: EXTERNAL_CREDENTIAL_ENCRYPTION_KEY
         generateValue: true
+      - key: EODHD_API_TOKEN
+        sync: false
       - key: ISATER_ADMIN_USERNAME
         sync: false
       - key: ISATER_ADMIN_DISPLAY_NAME

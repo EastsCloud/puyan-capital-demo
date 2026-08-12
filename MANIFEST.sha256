@@ -13,9 +13,9 @@ c042664e64a500f45e0c60c1185ee76cc517a08f17c337738c44deae81618a6f  ./docs/quick-s
 34d5bd51ce4e1941f750c73e6eae9b701437d9939882d527abfb1193ea91ed74  ./PACKAGE_VALIDATION.md
 b5f94818208274f3bcd5053a776634f2a8d5626410c6253ea4f9bb5a4f895462  ./README_START_HERE.md
 e16ffa11cc54909a4450b3a248103d8eaf06c8df7e39b5ed094cbba7942d0197  ./RELEASE_STATUS.md
-ec5ebf34fd656c1d2ec59c83a3719718c5c2761831975319b9c8981d37f4cec5  ./render.yaml
+bbcfe59b92601b5c2fd77f728e016273779ee3f61d25b9e8ef90b2615f297fe1  ./render.yaml
 b30f78d1f0c8ef49215a2347ff4826054f520ec21c9fa3308b8aa6068416f49b  ./start_app.bat
-77ab82188861b12ca27790279e7b452e665bee082c53dad6c2ac91a58cdc0acb  ./system/.env.example
+27d1e79f3e87793fe13b1c0f52f6db7491c5c2a9014421c0c74f132d2e19b7b2  ./system/.env.example
 6bde4e3a064e8669f2ff82c91d15ccd9ee4fdd6a02262ab1813d56a966aa1cf4  ./system/.gitignore
 c6cdadd519fb68af7f241421a9973458f584166b645ee057f97075621077d881  ./system/apps/api/package.json
 cf554e2f7ce972bbd5591248018a1e8a84248739c520bd0358e11a6ba960cc73  ./system/apps/api/src/admin.ts
@@ -25,11 +25,11 @@ fe0109556fbc0760bea4916467e1a4a1ac5261f19d042970f6cd51c38eaf344e  ./system/apps/
 0d3bbb7493bcd2da2d9e5ee26013820b39895e6bc1c8c2fb62e5b497987d535d  ./system/apps/api/src/auth.ts
 87f569925b1dc05174b97faeca0406bc0906c9a64714eea3548002691b9b3435  ./system/apps/api/src/backtest.ts
 a3824eb72d60a5dc41bd33b03d995395741bbb32e1a45bef37825efb3757ed37  ./system/apps/api/src/bootstrap-admin.ts
-28590dd31ee31faec536e20a95346737b47aecaa90d02f0aeaf40aaf7451629a  ./system/apps/api/src/config.ts
+ba84fa218d4a1189d64da094e1ffa202452f5c5178f8e78cbbcf3196ba2dcb92  ./system/apps/api/src/config.ts
 59528e5a11413ae6dd973e8f677a0e81715f0a9e818ea539bebe0ba54b7fcd79  ./system/apps/api/src/credential-crypto.ts
 5bb80fd11b1dc2a2bb52e184b46b6ced5a01813eff9281de6e142f9a2bcc62cf  ./system/apps/api/src/db.ts
 1c632182f7508293f1c455e1cab7a8846824ae7db02e726e6336fdc3d6145a5c  ./system/apps/api/src/dev-database.ts
-798683c811f99d13273be2453d5b1e0c0e6c3c475b904b220706538b8cb3d424  ./system/apps/api/src/eodhd.ts
+7f97951f242ea26cda521f4dbf506fb740b92230d590aa3503bfa8e538c365b4  ./system/apps/api/src/eodhd.ts
 2a0dc3ce03b13556073f8efeb26adba8f53f42a4698615a86be466c19b8437e9  ./system/apps/api/src/eodhd-client.ts
 e42086d11f6a2df0ec4693060ee29861541fea3dbbe65e29c4b6dbaf954bf609  ./system/apps/api/src/migrate.ts
 e123dd7be7528e0ebdf924ddd70c8dba5acffb3331d78938e4a68b41c887aa95  ./system/apps/api/src/monitoring.ts
@@ -43,7 +43,7 @@ bc5fbee9ae3d4c6b5010f6b831d4947aa8be1d574079eb9f419593f1dd5d17d6  ./system/apps/
 3aa04289d008772528f1b07aaa0df4e41f433459c1b60026116d47ac129510e8  ./system/apps/api/src/public-data.ts
 d7ecfbd052cb4b9de5efc7a9161c46c34752cf333ec3a7c0c6dcc8973adffa4a  ./system/apps/api/src/reporting.ts
 1e673f442d2701e871287add7cc67f8f193502a0e401cebc54a98a15bfe5721a  ./system/apps/api/src/security.ts
-e8358b431feeb1922da75db6d330114b3a01c036b2d81cc776d770bbfb4b12d7  ./system/apps/api/src/server.ts
+490a8fcbdcb2382d0d57051adc34059e3d81b8ec00be33fe97e86d8e829cfeea  ./system/apps/api/src/server.ts
 4c4376bf84ff78750f864907f2ce934479ef596a9850df33384d02c648b7eaf8  ./system/apps/api/src/sleeve-targets.ts
 8ef8f0b06d8a028f21b705464ece6b9f3860d025baaf3c4a3af9ab057c7c68fe  ./system/apps/api/src/target-return.ts
 2221448b0f46d790feb18745699ddb4cb5b19c8f953185b9358fc6f4b392adbb  ./system/apps/api/src/types.ts

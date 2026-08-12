@@ -13,6 +13,10 @@ const environmentSchema = z.object({
   LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(30),
   APP_TIMEZONE: z.string().default("Asia/Hong_Kong"),
   FRED_API_KEY: z.string().trim().optional(),
+  EODHD_API_TOKEN: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string().trim().min(8).max(512).optional(),
+  ),
   EXTERNAL_CREDENTIAL_ENCRYPTION_KEY: z.preprocess(
     (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
     z.string().trim().min(32).optional(),
