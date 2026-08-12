@@ -23,7 +23,7 @@ fe0109556fbc0760bea4916467e1a4a1ac5261f19d042970f6cd51c38eaf344e  ./system/apps/
 80b278d1404bc360f9043759ce161009b0da4a3054ffdf05a6507af4baef655c  ./system/apps/api/src/app.ts
 793aaace75905cf31d1504bca47995f76deb64b922b04b1551aaa410181e23d9  ./system/apps/api/src/audit.ts
 0d3bbb7493bcd2da2d9e5ee26013820b39895e6bc1c8c2fb62e5b497987d535d  ./system/apps/api/src/auth.ts
-87f569925b1dc05174b97faeca0406bc0906c9a64714eea3548002691b9b3435  ./system/apps/api/src/backtest.ts
+3bca7c341475428409cf187c6305cc0388c4161b45112a9dd931e6f3f4703909  ./system/apps/api/src/backtest.ts
 a3824eb72d60a5dc41bd33b03d995395741bbb32e1a45bef37825efb3757ed37  ./system/apps/api/src/bootstrap-admin.ts
 ba84fa218d4a1189d64da094e1ffa202452f5c5178f8e78cbbcf3196ba2dcb92  ./system/apps/api/src/config.ts
 59528e5a11413ae6dd973e8f677a0e81715f0a9e818ea539bebe0ba54b7fcd79  ./system/apps/api/src/credential-crypto.ts

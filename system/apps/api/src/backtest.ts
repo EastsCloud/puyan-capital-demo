@@ -168,18 +168,29 @@ export async function saveObservations(series: PriceSeries[]): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const item of series) {
-      for (const point of item.points) {
-        await client.query(
-          `INSERT INTO market_observations
-            (instrument_key, observation_date, field, value, currency, source_name, source_url, retrieved_at)
-           VALUES ($1, $2, 'adjusted_close', $3, NULLIF($4, ''), $5, $6, now())
-           ON CONFLICT (instrument_key, observation_date, field, source_name)
-           DO UPDATE SET value = EXCLUDED.value, currency = EXCLUDED.currency,
-             source_url = EXCLUDED.source_url, retrieved_at = EXCLUDED.retrieved_at`,
-          [item.symbol, point.date, point.value, item.currency, item.sourceName, item.sourceUrl],
-        );
-      }
+    const observations = series.flatMap((item) => item.points.map((point) => ({
+      symbol: item.symbol, date: point.date, value: point.value, currency: item.currency,
+      sourceName: item.sourceName, sourceUrl: item.sourceUrl,
+    })));
+    const batchSize = 500;
+    for (let offset = 0; offset < observations.length; offset += batchSize) {
+      const batch = observations.slice(offset, offset + batchSize);
+      const values: unknown[] = [];
+      const rows = batch.map((observation, index) => {
+        const base = index * 6;
+        values.push(observation.symbol, observation.date, observation.value, observation.currency,
+          observation.sourceName, observation.sourceUrl);
+        return `($${base + 1}, $${base + 2}, 'adjusted_close', $${base + 3}, NULLIF($${base + 4}, ''), $${base + 5}, $${base + 6}, now())`;
+      });
+      await client.query(
+        `INSERT INTO market_observations
+          (instrument_key, observation_date, field, value, currency, source_name, source_url, retrieved_at)
+         VALUES ${rows.join(",")}
+         ON CONFLICT (instrument_key, observation_date, field, source_name)
+         DO UPDATE SET value = EXCLUDED.value, currency = EXCLUDED.currency,
+           source_url = EXCLUDED.source_url, retrieved_at = EXCLUDED.retrieved_at`,
+        values,
+      );
     }
     await client.query("COMMIT");
   } catch (error) {
@@ -315,13 +326,13 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
            metrics, hard_control_pass, review_flags, model_version, run_by)
          VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.0.0', $10) RETURNING *`,
         [proposal.rows[0].id, next.rows[0].run_number, startDate, endDate,
-          { sleeves: sleeveBenchmarkSymbols, methodology: "constant sleeve weights; weekly total-return proxy from adjusted close" },
-          { provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",
+          JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: "constant sleeve weights; weekly total-return proxy from adjusted close" }),
+          JSON.stringify({ provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",
             primaryProviderStatus: eodhdToken ? (allSeries.every((item) => item.sourceName === "EODHD") ? "succeeded" : "partial_fallback") : "not_configured",
             symbols: allSymbols, eodhdSymbols: uniqueRequests.map((item) => item.eodhdSymbol), retrievedAt: new Date().toISOString(),
             persistedToMarketObservations: true,
-            sources: allSeries.map((item) => ({ symbol: item.symbol, provider: item.sourceName, url: item.sourceUrl, fallbackReason: item.fallbackReason ?? null })) },
-          { sleeves: sleeveMetrics }, hardControlPass, reviewFlags, user.id],
+            sources: allSeries.map((item) => ({ symbol: item.symbol, provider: item.sourceName, url: item.sourceUrl, fallbackReason: item.fallbackReason ?? null })) }),
+          JSON.stringify({ sleeves: sleeveMetrics }), hardControlPass, JSON.stringify(reviewFlags), user.id],
       );
       await client.query("UPDATE proposed_portfolio_versions SET status = $1 WHERE id = $2", [hardControlPass ? "backtest_passed" : "backtest_failed", proposal.rows[0].id]);
       await writeAudit(client, {
