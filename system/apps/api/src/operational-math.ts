@@ -1,12 +1,41 @@
+const exchangeAliases: Record<string, string> = {
+  HK: "HKEX", HKEX: "HKEX",
+  JP: "TSE", TSE: "TSE", TYO: "TSE",
+  "CN-A": "SZSE", CN_A: "SZSE", CNA: "SZSE", SZ: "SZSE", SZSE: "SZSE",
+};
+
+const tickerSuffixes: Record<string, string[]> = {
+  HKEX: ["HKEX", "HK"],
+  TSE: ["TSE", "JP"],
+  SZSE: ["SZSE", "CN-A", "CN_A", "CNA"],
+};
+
+function normalizeSecurity(ticker: string, exchangeCode: string) {
+  const rawExchange = String(exchangeCode).trim().toUpperCase();
+  const exchange = exchangeAliases[rawExchange] ?? rawExchange;
+  let normalizedTicker = String(ticker).trim().toUpperCase().replace(/\s+/g, "");
+  for (const suffix of tickerSuffixes[exchange] ?? [exchange]) {
+    if (normalizedTicker.length > suffix.length && normalizedTicker.endsWith(suffix)) {
+      normalizedTicker = normalizedTicker.slice(0, -suffix.length).replace(/[._-]+$/, "");
+      break;
+    }
+  }
+  return { ticker: normalizedTicker, exchangeCode: exchange };
+}
+
 export function reconcileExecutionFills(
   planned: Array<{ ticker: string; exchangeCode?: string; market?: string; side: "BUY" | "SELL"; targetValue: number }>,
   fills: Array<{ ticker: string; exchangeCode: string; side: "BUY" | "SELL"; quantity: number; price: number; externalTradeId?: string }>,
   valueTolerancePct: number,
 ) {
-  const plannedMap = new Map(planned.map((order) => [`${String(order.ticker).toUpperCase()}|${String(order.exchangeCode ?? order.market).toUpperCase()}|${order.side}`, order]));
+  const plannedMap = new Map<string, (typeof planned)[number] & { ticker: string; exchangeCode: string }>(planned.map((order) => {
+    const security = normalizeSecurity(order.ticker, String(order.exchangeCode ?? order.market));
+    return [`${security.ticker}|${security.exchangeCode}|${order.side}`, { ...order, ...security }];
+  }));
   const actualKeys = new Set<string>();
   const lines: Array<any> = fills.map((fill) => {
-    const key = `${fill.ticker}|${fill.exchangeCode}|${fill.side}`;
+    const security = normalizeSecurity(fill.ticker, fill.exchangeCode);
+    const key = `${security.ticker}|${security.exchangeCode}|${fill.side}`;
     if (actualKeys.has(key)) {
       const error = new Error(`Duplicate execution fill: ${key}`) as Error & { statusCode: number };
       error.statusCode = 409;
@@ -19,11 +48,11 @@ export function reconcileExecutionFills(
     const varianceValue = tradeValue - plannedValue;
     const varianceRate = plannedValue > 0 ? varianceValue / plannedValue : null;
     const status = !order ? "unplanned" : Math.abs(varianceRate ?? 0) <= valueTolerancePct / 100 ? "matched" : "exception";
-    return { ...fill, tradeValue, plannedValue, varianceValue, varianceRate, status };
+    return { ...fill, ...security, tradeValue, plannedValue, varianceValue, varianceRate, status };
   });
   for (const [key, order] of plannedMap.entries()) {
     if (!actualKeys.has(key)) lines.push({
-      ticker: String(order.ticker).toUpperCase(), exchangeCode: String(order.exchangeCode ?? order.market).toUpperCase(), side: order.side,
+      ticker: order.ticker, exchangeCode: order.exchangeCode, side: order.side,
       quantity: 0, price: 0, externalTradeId: undefined, tradeValue: 0, plannedValue: Number(order.targetValue),
       varianceValue: -Number(order.targetValue), varianceRate: -1, status: "exception",
     });
