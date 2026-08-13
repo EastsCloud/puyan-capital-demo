@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { writeAudit } from "./audit.js";
@@ -215,7 +215,7 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       const source = await client.query(
         `INSERT INTO source_files (organization_id, source_type, original_filename, object_key, content_type, byte_size, sha256, business_date, imported_by, retain_until)
          VALUES ($1,'execution_fills',$2,$3,'text/csv',$4,$5,$6,$7,($6::date + interval '7 years')::date) RETURNING id`,
-        [user.organizationId, input.filename, `database://execution-fill/${workflowId}/${input.businessDate}/${sha}`, Buffer.byteLength(input.content), sha, input.businessDate, user.id],
+        [user.organizationId, input.filename, `database://execution-fill/${workflowId}/${input.businessDate}/${sha}/${randomUUID()}`, Buffer.byteLength(input.content), sha, input.businessDate, user.id],
       );
       const batch = await client.query(
         `INSERT INTO execution_fill_batches (workflow_case_id, source_file_id, business_date, status, summary, imported_by)
