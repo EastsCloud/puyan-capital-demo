@@ -6,6 +6,7 @@ import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
 import { config } from "./config.js";
 import { reconcileExecutionFills } from "./operational-math.js";
+import { assertDifferentReviewer } from "@isater/domain";
 
 const fillSchema = z.object({
   ticker: z.string().trim().min(1).max(32).transform((value) => value.toUpperCase()),
@@ -22,6 +23,10 @@ const fillBatchSchema = z.object({
   content: z.string().max(10_000_000),
   fills: z.array(fillSchema).min(1).max(5_000),
   valueTolerancePct: z.number().min(0).max(25).default(2),
+});
+
+const fillReviewSchema = z.object({
+  decision: z.enum(["approve", "reject"]),
 });
 
 const cashFlowSchema = z.object({
@@ -152,7 +157,7 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
         [workflowId],
       ),
       pool.query(
-        `SELECT b.*, sf.original_filename,
+        `SELECT b.*, sf.original_filename, reviewer.display_name AS reviewed_by_name,
                 COALESCE(json_agg(json_build_object(
                   'ticker', l.ticker, 'exchangeCode', l.exchange_code, 'side', l.side,
                   'quantity', l.quantity, 'price', l.price, 'tradeValue', l.trade_value,
@@ -162,9 +167,10 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
                 ) ORDER BY l.ticker) FILTER (WHERE l.id IS NOT NULL), '[]') AS lines
            FROM execution_fill_batches b
            JOIN source_files sf ON sf.id = b.source_file_id
+           LEFT JOIN users reviewer ON reviewer.id = b.reviewed_by
            LEFT JOIN execution_fill_lines l ON l.batch_id = b.id
           WHERE b.workflow_case_id = $1
-          GROUP BY b.id, sf.original_filename
+          GROUP BY b.id, sf.original_filename, reviewer.display_name
           ORDER BY b.business_date DESC, b.imported_at DESC LIMIT 1`,
         [workflowId],
       ),
@@ -224,6 +230,62 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       await writeAudit(client, { organizationId: user.organizationId, actorUserId: user.id, action: "execution.fills.import", entityType: "execution_fill_batch", entityId: batch.rows[0].id, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: summary });
       await client.query("COMMIT");
       return reply.code(201).send({ fillBatch: { ...batch.rows[0], summary, lines } });
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  });
+
+  app.post("/api/execution-fill-batches/:batchId/review", async (request) => {
+    const user = requireExecution(request);
+    const input = fillReviewSchema.parse(request.body);
+    const { batchId } = request.params as { batchId: string };
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `SELECT b.*, w.organization_id
+           FROM execution_fill_batches b
+           JOIN workflow_cases w ON w.id = b.workflow_case_id
+          WHERE b.id = $1 AND w.organization_id = $2
+          FOR UPDATE OF b`,
+        [batchId, user.organizationId],
+      );
+      const batch = result.rows[0];
+      if (!batch || batch.review_status !== "pending_review") throw invalidState("Pending execution fill batch not found");
+      assertDifferentReviewer(batch.imported_by, user.id);
+      const reviewStatus = input.decision === "approve" ? "approved" : "rejected";
+      const updated = await client.query(
+        `UPDATE execution_fill_batches
+            SET review_status = $2, reviewed_by = $3, reviewed_at = now()
+          WHERE id = $1 RETURNING *`,
+        [batchId, reviewStatus, user.id],
+      );
+      await writeAudit(client, { organizationId: user.organizationId, actorUserId: user.id, action: "execution.fills.review", entityType: "execution_fill_batch", entityId: batchId, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: { decision: input.decision, importer: batch.imported_by } });
+      await client.query("COMMIT");
+      return { fillBatch: updated.rows[0] };
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  });
+
+  app.delete("/api/execution-fill-batches/:batchId", async (request, reply) => {
+    const user = requireExecution(request);
+    const { batchId } = request.params as { batchId: string };
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `SELECT b.*, w.organization_id
+           FROM execution_fill_batches b
+           JOIN workflow_cases w ON w.id = b.workflow_case_id
+          WHERE b.id = $1 AND w.organization_id = $2
+          FOR UPDATE OF b`,
+        [batchId, user.organizationId],
+      );
+      const batch = result.rows[0];
+      if (!batch) throw invalidState("Execution fill batch not found");
+      if (batch.imported_by !== user.id) throw forbidden("Only the importer can delete this batch");
+      if (batch.review_status === "approved") throw invalidState("An approved execution fill batch cannot be deleted");
+      await writeAudit(client, { organizationId: user.organizationId, actorUserId: user.id, action: "execution.fills.delete", entityType: "execution_fill_batch", entityId: batchId, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: { reviewStatus: batch.review_status, reconciliationStatus: batch.status, sourceFileId: batch.source_file_id } });
+      await client.query("DELETE FROM execution_fill_batches WHERE id = $1", [batchId]);
+      await client.query("COMMIT");
+      return reply.code(204).send();
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   });
 
