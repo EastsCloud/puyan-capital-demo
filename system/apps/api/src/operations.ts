@@ -149,7 +149,7 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       [workflowId, user.organizationId],
     );
     if (!workflow.rows[0]) throw invalidState("Workflow not found");
-    const [actionResult, batchResult, cashResult] = await Promise.all([
+    const [actionResult, batchResult, cashResult, securitiesResult] = await Promise.all([
       pool.query(
         `SELECT payload FROM maker_checker_actions
           WHERE workflow_case_id = $1 AND action_type = 'confirm_implementation' AND status = 'approved'
@@ -178,13 +178,49 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
         `SELECT * FROM external_cash_flows WHERE workflow_case_id = $1 ORDER BY flow_date, recorded_at`,
         [workflowId],
       ),
+      pool.query(
+        `SELECT ticker, exchange_code, name_en, name_zh, market
+           FROM ticker_universe
+          WHERE enabled = true
+          ORDER BY ticker, exchange_code`,
+      ),
     ]);
     const payload = actionResult.rows[0] ? jsonValue<{ orders?: Array<Record<string, unknown>> }>(actionResult.rows[0].payload) : {};
     return {
       workflowStep: workflow.rows[0].current_step,
       approvedOrders: payload.orders ?? [],
+      securityOptions: securitiesResult.rows,
       latestFillBatch: batchResult.rows[0] ? { ...batchResult.rows[0], summary: jsonValue(batchResult.rows[0].summary), lines: jsonValue(batchResult.rows[0].lines) } : null,
       cashFlows: cashResult.rows,
+    };
+  });
+
+  app.post("/api/workflows/:workflowId/execution-fills/preview", async (request) => {
+    const user = requireExecution(request);
+    const input = fillBatchSchema.parse(request.body);
+    const { workflowId } = request.params as { workflowId: string };
+    const workflow = await pool.query(
+      `SELECT id, current_step FROM workflow_cases
+        WHERE id = $1 AND organization_id = $2 AND status = 'active'`,
+      [workflowId, user.organizationId],
+    );
+    if (!workflow.rows[0]) throw invalidState("Active workflow not found");
+    if (!["monitoring", "non_equity_nav", "reporting"].includes(workflow.rows[0].current_step)) throw invalidState("Execution fills are available after implementation approval");
+    const action = await pool.query(
+      `SELECT payload FROM maker_checker_actions
+        WHERE workflow_case_id = $1 AND action_type = 'confirm_implementation' AND status = 'approved'
+        ORDER BY reviewed_at DESC LIMIT 1`,
+      [workflowId],
+    );
+    if (!action.rows[0]) throw invalidState("An approved maker-checker implementation plan is required");
+    const planned = jsonValue<{ orders?: Array<any> }>(action.rows[0].payload).orders ?? [];
+    const { lines, summary } = reconcileExecutionFills(planned, input.fills, input.valueTolerancePct);
+    return {
+      preview: {
+        importedLines: lines.slice(0, input.fills.length),
+        missingPlannedLines: lines.slice(input.fills.length),
+        summary,
+      },
     };
   });
 

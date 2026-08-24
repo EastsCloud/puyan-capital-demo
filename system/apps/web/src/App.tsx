@@ -318,6 +318,7 @@ interface ReportContext {
 interface ExecutionEvidenceContext {
   workflowStep: string;
   approvedOrders: Array<{ ticker: string; exchangeCode: string; side: "BUY" | "SELL"; targetValue: number; currency: string }>;
+  securityOptions: Array<{ ticker: string; exchange_code: string; name_en: string; name_zh: string; market: string }>;
   latestFillBatch: null | {
     id: string; business_date: string; status: "matched" | "exceptions"; original_filename: string;
     imported_by: string; review_status: "pending_review" | "approved" | "rejected"; reviewed_by_name: string | null;
@@ -325,6 +326,26 @@ interface ExecutionEvidenceContext {
     lines: Array<{ ticker: string; exchangeCode: string; side: string; quantity: string | number; price: string | number; tradeValue: string | number; plannedValue: string | number; varianceValue: string | number; varianceRate: string | number | null; status: "matched" | "exception" | "unplanned" }>;
   };
   cashFlows: Array<{ id: string; flow_date: string; amount: string | number; currency: string; flow_type: "contribution" | "withdrawal"; reference: string | null; note: string | null }>;
+}
+
+interface ExecutionFillDraft {
+  selected: boolean;
+  ticker: string;
+  exchangeCode: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  price: number;
+  externalTradeId?: string;
+  tradeValue: number;
+  plannedValue: number;
+  varianceValue: number;
+  status: "matched" | "exception" | "unplanned" | "excluded" | "needs_review";
+}
+
+interface ExecutionFillPreview {
+  importedLines: Array<Omit<ExecutionFillDraft, "selected" | "status"> & { status: "matched" | "exception" | "unplanned" }>;
+  missingPlannedLines: Array<Omit<ExecutionFillDraft, "selected" | "status"> & { status: "exception" }>;
+  summary: { plannedOrders: number; importedFills: number; matched: number; exceptions: number; valueTolerancePct: number };
 }
 
 interface SourceFileRecord {
@@ -877,24 +898,94 @@ function parseExecutionFillCsv(content: string) {
   });
 }
 
+function serializeExecutionFills(fills: ExecutionFillDraft[]) {
+  const cell = (value: string | number | undefined) => {
+    const text = String(value ?? "");
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  return ["Ticker,Exchange,Side,Quantity,Price,ExternalTradeId", ...fills.map((fill) => [
+    fill.ticker, fill.exchangeCode, fill.side, fill.quantity, fill.price, fill.externalTradeId,
+  ].map(cell).join(","))].join("\n");
+}
+
 function ExecutionEvidencePanel({ locale, user, workflow, readOnly }: { locale: Locale; user: User; workflow: AnnualWorkflow; readOnly: boolean }) {
   const zh = locale === "zh-CN";
   const [context, setContext] = useState<ExecutionEvidenceContext | null>(null);
   const [file, setFile] = useState<File | null>(null); const [pasted, setPasted] = useState("");
+  const [fillDrafts, setFillDrafts] = useState<ExecutionFillDraft[]>([]);
+  const [missingPlanned, setMissingPlanned] = useState<ExecutionFillPreview["missingPlannedLines"]>([]);
+  const [previewReady, setPreviewReady] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10)); const [tolerance, setTolerance] = useState(2);
   const [flowDate, setFlowDate] = useState(new Date().toISOString().slice(0, 10)); const [flowAmount, setFlowAmount] = useState(0);
   const [flowType, setFlowType] = useState<"contribution" | "withdrawal">("contribution"); const [flowReference, setFlowReference] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState<string | null>(null);
   const load = () => api<ExecutionEvidenceContext>(`/api/workflows/${workflow.id}/execution-evidence/context`).then(setContext);
   useEffect(() => { void load(); }, [workflow.id]);
-  async function uploadFills() {
+  async function requestPreview(drafts: ExecutionFillDraft[]) {
+    const selectedIndexes = drafts.map((draft, index) => draft.selected ? index : -1).filter((index) => index >= 0);
+    if (selectedIndexes.length === 0) throw new Error(zh ? "请至少勾选一笔成交。" : "Select at least one fill.");
+    const selected = selectedIndexes.map((index) => drafts[index]);
+    if (selected.some((fill) => !fill.ticker.trim() || !fill.exchangeCode.trim() || !Number.isFinite(fill.quantity) || !Number.isFinite(fill.price))) {
+      throw new Error(zh ? "请完善已勾选成交的股票、交易所、数量和价格。" : "Complete ticker, exchange, quantity and price for every selected fill.");
+    }
+    const content = serializeExecutionFills(selected);
+    const result = await api<{ preview: ExecutionFillPreview }>(`/api/workflows/${workflow.id}/execution-fills/preview`, {
+      method: "POST",
+      body: JSON.stringify({ businessDate: date, filename: file?.name ?? `execution-fills-${date}.csv`, content, fills: selected.map(({ selected: _selected, tradeValue: _tradeValue, plannedValue: _plannedValue, varianceValue: _varianceValue, status: _status, ...fill }) => fill), valueTolerancePct: tolerance }),
+    });
+    const next: ExecutionFillDraft[] = drafts.map((draft) => draft.selected ? { ...draft, status: "needs_review" } : { ...draft, status: "excluded" });
+    result.preview.importedLines.forEach((line, offset) => {
+      const index = selectedIndexes[offset];
+      next[index] = { ...next[index], ...line, selected: true };
+    });
+    setFillDrafts(next);
+    setMissingPlanned(result.preview.missingPlannedLines);
+    setPreviewReady(true);
+  }
+  async function prepareFillPreview() {
     if (!file && !pasted.trim()) return;
     setBusy(true); setMessage(null);
     try {
       const content = file ? await file.text() : pasted.trim();
       const fills = parseExecutionFillCsv(content);
+      const drafts = fills.map((fill) => ({ ...fill, selected: true, tradeValue: 0, plannedValue: 0, varianceValue: 0, status: "needs_review" as const }));
+      setFillDrafts(drafts);
+      await requestPreview(drafts);
+      setMessage(zh ? "预览已生成。请核对、修正并勾选需要导入的成交。" : "Preview ready. Review, correct and select the fills to import.");
+    } catch (reason) { setMessage((reason as Error).message); } finally { setBusy(false); }
+  }
+  async function refreshFillPreview() {
+    setBusy(true); setMessage(null);
+    try {
+      await requestPreview(fillDrafts);
+      setMessage(zh ? "预览已重新核对，未选择或缺失的计划交易仍会列为异常。" : "Preview refreshed; excluded or missing planned trades remain exceptions.");
+    } catch (reason) { setMessage((reason as Error).message); } finally { setBusy(false); }
+  }
+  function updateFillDraft(index: number, changes: Partial<ExecutionFillDraft>) {
+    setFillDrafts((current) => current.map((draft, rowIndex) => rowIndex === index ? { ...draft, ...changes, status: changes.selected === false ? "excluded" : "needs_review" } : draft));
+    setPreviewReady(false);
+  }
+  function chooseTicker(index: number, ticker: string) {
+    if (!context) return;
+    const normalized = ticker.trim().toUpperCase();
+    const approved = context.approvedOrders.find((item) => item.ticker.toUpperCase() === normalized);
+    const options = context.securityOptions.filter((item) => item.ticker.toUpperCase() === normalized);
+    const match = approved ?? (options.length === 1 ? { ticker: options[0].ticker, exchangeCode: options[0].exchange_code } : null);
+    updateFillDraft(index, { ticker: normalized, ...(match ? { exchangeCode: match.exchangeCode } : {}) });
+  }
+  function addFillDraft() {
+    setFillDrafts((current) => [...current, { selected: true, ticker: "", exchangeCode: "", side: "BUY", quantity: 0, price: 0, externalTradeId: "", tradeValue: 0, plannedValue: 0, varianceValue: 0, status: "needs_review" }]);
+    setPreviewReady(false);
+  }
+  async function uploadFills() {
+    const selected = fillDrafts.filter((fill) => fill.selected);
+    if (!previewReady || selected.length === 0) return;
+    setBusy(true); setMessage(null);
+    try {
+      const content = serializeExecutionFills(selected);
+      const fills = selected.map(({ selected: _selected, tradeValue: _tradeValue, plannedValue: _plannedValue, varianceValue: _varianceValue, status: _status, ...fill }) => fill);
       await api(`/api/workflows/${workflow.id}/execution-fills`, { method: "POST", body: JSON.stringify({ businessDate: date, filename: file?.name ?? `execution-fills-${date}.csv`, content, fills, valueTolerancePct: tolerance }) });
-      await load(); setFile(null); setPasted(""); setMessage(zh ? "成交回单已保存，并与双人复核后的交易计划完成核对。" : "Fills were saved and reconciled to the maker-checker plan.");
+      await load(); setFile(null); setPasted(""); setFillDrafts([]); setMissingPlanned([]); setPreviewReady(false); setMessage(zh ? "所选成交已保存，并与双人复核后的交易计划完成核对。" : "Selected fills were saved and reconciled to the maker-checker plan.");
     } catch (reason) { setMessage((reason as Error).message); } finally { setBusy(false); }
   }
   async function reviewFills(decision: "approve" | "reject") {
@@ -927,9 +1018,15 @@ function ExecutionEvidencePanel({ locale, user, workflow, readOnly }: { locale: 
   }
   if (!context) return <section className="placeholder"><p>{zh ? "正在读取执行凭证" : "Loading execution evidence"}</p></section>;
   const money = (value: number) => new Intl.NumberFormat(locale, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+  const securityName = (ticker: string, exchangeCode: string) => {
+    const option = context.securityOptions.find((item) => item.ticker.toUpperCase() === ticker.toUpperCase() && item.exchange_code.toUpperCase() === exchangeCode.toUpperCase());
+    return option ? (zh ? option.name_zh : option.name_en) : "";
+  };
+  const selectedFillCount = fillDrafts.filter((fill) => fill.selected).length;
   return <section className="execution-evidence annual-data-panel">
     <header><div><span className="section-label">{zh ? "Puyan 迁移能力 · 实施后" : "Migrated from Puyan · Post implementation"}</span><h3>{zh ? "成交回单与计划核对" : "Execution fills and plan reconciliation"}</h3><p>{zh ? "这里只登记实际成交，不改变已批准组合，也不绕过双人复核。" : "Actual fills are evidence only; they do not alter approval or bypass maker-checker."}</p></div><ReceiptText size={26} /></header>
-    {!readOnly && user.role === "execution_team" && <div className="evidence-entry-grid"><label><span>{zh ? "成交日期" : "Trade date"}</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>{zh ? "允许金额偏差 (%)" : "Value tolerance (%)"}</span><input type="number" min="0" max="25" step="0.1" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} /></label><label className="file-picker"><input type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPasted(""); }} /><span>{file?.name ?? (zh ? "选择成交 CSV" : "Choose fills CSV")}</span></label><a className="secondary-button compact" href="/templates/execution-fills-template.csv" download>{zh ? "下载成交模板" : "Download fills template"}</a><label className="csv-paste wide"><span>{zh ? "或粘贴：Ticker, Exchange, Side, Quantity, Price, ExternalTradeId" : "Or paste: Ticker, Exchange, Side, Quantity, Price, ExternalTradeId"}</span><textarea rows={3} value={pasted} onChange={(event) => { setPasted(event.target.value); setFile(null); }} /></label><button className="primary-button compact" disabled={busy || (!file && !pasted.trim())} onClick={uploadFills}>{zh ? "导入并核对" : "Import and reconcile"}</button></div>}
+    {!readOnly && user.role === "execution_team" && <div className="evidence-entry-grid"><label><span>{zh ? "成交日期" : "Trade date"}</span><input type="date" value={date} onChange={(event) => { setDate(event.target.value); setPreviewReady(false); }} /></label><label><span>{zh ? "允许金额偏差 (%)" : "Value tolerance (%)"}</span><input type="number" min="0" max="25" step="0.1" value={tolerance} onChange={(event) => { setTolerance(Number(event.target.value)); setPreviewReady(false); }} /></label><label className="file-picker"><input type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPasted(""); setFillDrafts([]); setMissingPlanned([]); setPreviewReady(false); }} /><span>{file?.name ?? (zh ? "选择成交 CSV" : "Choose fills CSV")}</span></label><a className="secondary-button compact" href="/templates/execution-fills-template.csv" download>{zh ? "下载成交模板" : "Download fills template"}</a><label className="csv-paste wide"><span>{zh ? "或粘贴：Ticker, Exchange, Side, Quantity, Price, ExternalTradeId" : "Or paste: Ticker, Exchange, Side, Quantity, Price, ExternalTradeId"}</span><textarea rows={3} value={pasted} onChange={(event) => { setPasted(event.target.value); setFile(null); setFillDrafts([]); setMissingPlanned([]); setPreviewReady(false); }} /></label><button className="primary-button compact" disabled={busy || (!file && !pasted.trim())} onClick={prepareFillPreview}>{zh ? "生成导入预览" : "Preview import"}</button></div>}
+    {fillDrafts.length > 0 && <section className="fill-import-preview"><header><div><span className="section-label">{zh ? "导入前检查" : "Pre-import review"}</span><h4>{zh ? `已选择 ${selectedFillCount}/${fillDrafts.length} 笔成交` : `${selectedFillCount}/${fillDrafts.length} fills selected`}</h4><p>{zh ? "输入股票代码会提示系统证券；选择后自动补充交易所。修改或取消勾选后需要重新核对。" : "Ticker input suggests system securities and fills the exchange. Recheck after editing or changing selections."}</p></div><div className="preview-actions"><button className="secondary-button compact" onClick={addFillDraft} disabled={busy}>{zh ? "新增一行" : "Add row"}</button><button className="secondary-button compact" onClick={refreshFillPreview} disabled={busy || selectedFillCount === 0}>{zh ? "重新核对" : "Recheck"}</button></div></header><datalist id="execution-security-options">{context.securityOptions.map((item) => <option key={`${item.ticker}-${item.exchange_code}`} value={item.ticker} label={`${item.exchange_code} · ${zh ? item.name_zh : item.name_en}`} />)}</datalist><datalist id="execution-exchange-options">{Array.from(new Set(context.securityOptions.map((item) => item.exchange_code))).map((exchange) => <option key={exchange} value={exchange} />)}</datalist><div className="table-wrap"><table className="fill-preview-table"><thead><tr><th>{zh ? "导入" : "Use"}</th><th>{zh ? "股票" : "Security"}</th><th>{zh ? "交易所" : "Exchange"}</th><th>{zh ? "方向" : "Side"}</th><th>{zh ? "数量" : "Quantity"}</th><th>{zh ? "价格" : "Price"}</th><th>{zh ? "计划/实际" : "Planned / actual"}</th><th>{zh ? "预览结果" : "Preview result"}</th></tr></thead><tbody>{fillDrafts.map((fill, index) => <tr key={`${index}-${fill.externalTradeId ?? "fill"}`} className={!fill.selected ? "excluded" : fill.status}><td><input type="checkbox" checked={fill.selected} aria-label={zh ? `选择第 ${index + 1} 笔成交` : `Select fill ${index + 1}`} onChange={(event) => updateFillDraft(index, { selected: event.target.checked })} /></td><td><input list="execution-security-options" value={fill.ticker} placeholder={zh ? "输入代码" : "Ticker"} onChange={(event) => chooseTicker(index, event.target.value)} /><small>{securityName(fill.ticker, fill.exchangeCode) || (zh ? "请选择对应证券" : "Select a security")}</small></td><td><input list="execution-exchange-options" value={fill.exchangeCode} onChange={(event) => updateFillDraft(index, { exchangeCode: event.target.value.toUpperCase() })} /></td><td><select value={fill.side} onChange={(event) => updateFillDraft(index, { side: event.target.value as "BUY" | "SELL" })}><option value="BUY">BUY</option><option value="SELL">SELL</option></select></td><td><input type="number" min="0" value={fill.quantity} onChange={(event) => updateFillDraft(index, { quantity: Number(event.target.value) })} /></td><td><input type="number" min="0" step="any" value={fill.price} onChange={(event) => updateFillDraft(index, { price: Number(event.target.value) })} /></td><td><small>{money(fill.plannedValue)}</small><strong>{money(fill.tradeValue)}</strong></td><td><strong className={fill.status === "matched" ? "result-pass" : fill.status === "excluded" ? "pending-note" : "result-fail"}>{fill.status === "needs_review" ? (zh ? "需重新核对" : "RECHECK") : fill.status === "excluded" ? (zh ? "不导入" : "EXCLUDED") : fill.status}</strong></td></tr>)}</tbody></table></div>{missingPlanned.length > 0 && <div className="missing-planned-warning"><strong>{zh ? `${missingPlanned.length} 笔计划交易在所选成交中缺失` : `${missingPlanned.length} planned trades are missing from the selection`}</strong><span>{missingPlanned.map((line) => `${line.ticker} · ${line.exchangeCode}`).join("、")}</span><small>{zh ? "这些项目会继续作为异常显示，取消勾选不能隐藏缺失计划。" : "These remain exceptions; unchecking a row cannot hide a missing planned trade."}</small></div>}<div className="preview-confirm"><span>{previewReady ? (zh ? "预览已按当前选择重新计算，可以确认导入。" : "Preview reflects the current selection and is ready.") : (zh ? "内容已变化，请先点击“重新核对”。" : "Content changed; click Recheck first.")}</span><button className="primary-button compact" disabled={busy || !previewReady || selectedFillCount === 0} onClick={uploadFills}>{zh ? "确认导入所选成交" : "Import selected fills"}</button></div></section>}
     {context.latestFillBatch ? <><div className={`evidence-summary ${context.latestFillBatch.status}`}><strong>{context.latestFillBatch.status === "matched" ? (zh ? "全部匹配" : "ALL MATCHED") : (zh ? "存在差异" : "EXCEPTIONS")}</strong><span>{context.latestFillBatch.original_filename} · {context.latestFillBatch.business_date.slice(0, 10)}</span><small>{zh ? `${context.latestFillBatch.summary.matched} 笔匹配，${context.latestFillBatch.summary.exceptions} 笔需复核` : `${context.latestFillBatch.summary.matched} matched, ${context.latestFillBatch.summary.exceptions} to review`}</small><small>{context.latestFillBatch.review_status === "pending_review" ? (zh ? "复核状态：待复核" : "Review: pending") : context.latestFillBatch.review_status === "approved" ? (zh ? `复核状态：已同意${context.latestFillBatch.reviewed_by_name ? `（${context.latestFillBatch.reviewed_by_name}）` : ""}` : `Review: approved${context.latestFillBatch.reviewed_by_name ? ` by ${context.latestFillBatch.reviewed_by_name}` : ""}`) : (zh ? `复核状态：不同意${context.latestFillBatch.reviewed_by_name ? `（${context.latestFillBatch.reviewed_by_name}）` : ""}` : `Review: rejected${context.latestFillBatch.reviewed_by_name ? ` by ${context.latestFillBatch.reviewed_by_name}` : ""}`)}</small></div>{!readOnly && user.role === "execution_team" && <div className="approval-actions">{context.latestFillBatch.review_status === "pending_review" && context.latestFillBatch.imported_by !== user.id && <><button className="secondary-button" disabled={busy} onClick={() => reviewFills("reject")}>{zh ? "复核不同意" : "Reject review"}</button><button className="primary-button compact" disabled={busy} onClick={() => reviewFills("approve")}>{zh ? "复核同意" : "Approve review"}</button></>}{context.latestFillBatch.imported_by === user.id && context.latestFillBatch.review_status !== "approved" && <button className="secondary-button" disabled={busy} onClick={deleteFills}>{zh ? "删除本次导入" : "Delete this import"}</button>}{context.latestFillBatch.review_status === "pending_review" && context.latestFillBatch.imported_by === user.id && <span className="readonly-note">{zh ? "请由另一名执行团队用户完成复核。" : "A different execution-team user must review this import."}</span>}</div>}<div className="table-wrap"><table><thead><tr><th>Ticker</th><th>{zh ? "方向" : "Side"}</th><th>{zh ? "计划金额" : "Planned"}</th><th>{zh ? "实际金额" : "Actual"}</th><th>{zh ? "差异" : "Variance"}</th><th>{zh ? "结果" : "Result"}</th></tr></thead><tbody>{context.latestFillBatch.lines.map((line) => <tr key={`${line.ticker}-${line.exchangeCode}-${line.side}`}><td><strong>{line.ticker}</strong><small>{line.exchangeCode}</small></td><td>{line.side}</td><td>{money(Number(line.plannedValue))}</td><td>{money(Number(line.tradeValue))}</td><td>{money(Number(line.varianceValue))}</td><td><strong className={line.status === "matched" ? "result-pass" : "result-fail"}>{line.status}</strong></td></tr>)}</tbody></table></div></> : <p className="readonly-note">{zh ? "尚未导入券商成交回单。持仓仍可按原 Iaster 流程每日导入。" : "No broker fills imported yet. Daily positions remain available below."}</p>}
     <div className="cash-flow-ledger"><header><div><span className="section-label">{zh ? "报告调整" : "Reporting adjustment"}</span><h4>{zh ? "外部现金流" : "External cash flows"}</h4></div></header>{!readOnly && user.role === "execution_team" && <div className="cash-flow-form"><input type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} /><select value={flowType} onChange={(event) => setFlowType(event.target.value as typeof flowType)}><option value="contribution">{zh ? "入金" : "Contribution"}</option><option value="withdrawal">{zh ? "出金" : "Withdrawal"}</option></select><input type="number" min="0" placeholder={zh ? "金额" : "Amount"} value={flowAmount || ""} onChange={(event) => setFlowAmount(Number(event.target.value))} /><input placeholder={zh ? "银行/券商参考号（可选）" : "Reference (optional)"} value={flowReference} onChange={(event) => setFlowReference(event.target.value)} /><button className="secondary-button" onClick={addCashFlow} disabled={busy || !(flowAmount > 0)}>{zh ? "登记" : "Record"}</button></div>}<div className="cash-flow-list">{context.cashFlows.length ? context.cashFlows.map((flow) => <span key={flow.id}><b>{flow.flow_date.slice(0, 10)}</b>{flow.flow_type === "contribution" ? (zh ? "入金" : "Contribution") : (zh ? "出金" : "Withdrawal")}<strong className={Number(flow.amount) >= 0 ? "result-pass" : "result-fail"}>{money(Number(flow.amount))}</strong><small>{flow.reference}</small></span>) : <p>{zh ? "本期没有外部现金流。" : "No external cash flows recorded."}</p>}</div></div>
     {message && <p className="form-message" role="status">{message}</p>}
