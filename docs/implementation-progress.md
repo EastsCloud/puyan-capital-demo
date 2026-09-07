@@ -88,9 +88,9 @@ Last updated: 2026-08-05
 - Hong Kong cloud account
 - Company email delivery service
 - Paid market-data provider and credentials
-# 2026-08-05 EODHD 技术接入准备
+# EODHD integration update — 2026-08-05
 
-- 新增系统管理员“数据连接”页面，支持 EODHD API Token 保存、启停、连接测试和删除。
-- Token 使用 AES-256-GCM 后台加密，前端仅显示末四位，凭证操作进入不可篡改审计。
-- 回测、优化和报告基准的证券复权价格改为 EODHD 首选、公开数据源后备；数据清单记录实际使用来源及回退原因。
-- 新增数据库迁移和 EODHD 适配器测试。真实账号尚未提供，因此真实连接测试明确保留为待办，不将模拟测试表述为真实连通。
+- Added an administrator-only External Data Connection screen for saving, enabling, testing, disabling, and deleting an EODHD API token.
+- Tokens are encrypted by the API with AES-256-GCM; the browser sees only the last four characters and credential operations create immutable audit events.
+- Backtests, optimizer histories, and reporting benchmarks prefer EODHD adjusted prices and retain the public adapter as a recorded fallback.
+- Added versioned migrations and adapter tests. A mocked adapter test must never be reported as proof of a live provider connection.

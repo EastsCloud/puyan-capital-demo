@@ -1,195 +1,103 @@
-# Isater v1.1 牛市与平衡市正式点击复测报告
+# Isater v1.1 Bull and Balanced Scenario Retest
 
-测试日期：2026-08-05  
-测试范围：牛市、平衡市从全新系统状态运行至“监控与再平衡”交接点  
-测试结论：**两种情景均通过主流程；平衡市真实触发优化并由优化器解决。发现 1 项待修复的任务提醒一致性问题。**
+Test date: 2026-08-05
 
-## 1. 测试方法
+Scope: independent clean-database browser runs through the monitoring handoff
 
-- 牛市和平衡市分别使用全新的独立数据库，不沿用熊市或此前测试状态。
-- 所有流程推进均通过页面可见的登录、表单和按钮完成，没有通过修改网址跳转步骤。
-- 系统管理员、决策委员会、执行人员 1、执行人员 2 使用四个独立账户。
-- 四个账户均实际验证首次登录和强制修改密码。
-- 公开数据引擎、真实历史回测和优化器均由页面按钮实际触发。
-- 本轮在交易计划双人复核完成、页面进入“监控与再平衡”后停止；没有重复测试持仓导入、月度检查、非股票净值和报告发布。
+## Method
 
-## 2. 测试环境
+- Bull and balanced scenarios used separate fresh databases.
+- All transitions were performed through visible login, form, and button controls.
+- Administrator, committee, execution maker, and execution checker used four independent accounts.
+- First-login password replacement was exercised for all accounts.
+- Public data, historical backtest, and optimization were started from the user interface.
+- The run stopped after the trade plan passed independent execution review and entered monitoring. Downstream position, NAV, and report coverage is documented in the bear-scenario report.
 
-| 项目 | 牛市 | 平衡市 |
-|---|---|---|
-| 系统版本 | Isater v1.1 | Isater v1.1 |
-| 独立数据库 | `test-data/formal-bull-e2e-v1.1-pg` | `test-data/formal-balanced-e2e-v1.1-pg` |
-| 测试年度 | 2026 | 2026 |
-| 初始本金 | US$10,000,000 | US$10,000,000 |
-| 回测窗口 | 36 个月、周频 | 36 个月、周频 |
+## Role path
 
-## 3. 角色和权限验证
+1. The administrator created business users and activated default parameters.
+2. The committee activated principal, started the annual cycle, and approved public data and target return.
+3. Execution user 1 confirmed sleeve targets, built the proposal, ran the backtest, and submitted the portfolio.
+4. The committee approved the portfolio.
+5. Execution user 1 submitted the generated trade plan.
+6. Execution user 2 reviewed it under a different account.
 
-两次测试均完成以下真实角色切换：
+## Bull scenario
 
-1. 系统管理员创建委员会和两名不同执行人员，并使默认参数生效。
-2. 决策委员会录入本金、启动年度流程、批准公开数据和目标收益率。
-3. 执行人员 1 确认 Sleeve、建立拟投资组合、运行回测并提交审批。
-4. 决策委员会批准拟投资组合。
-5. 执行人员 1 提交交易计划复核。
-6. 执行人员 2 使用另一账户完成复核。
+### Public-data recommendation
 
-结果：关键工作没有由错误角色代办；“一人提交、一人复核”实际生效。
+| Measure | Result |
+|---|---:|
+| Observation date | 2026-06-01 |
+| Sources | 8 |
+| Historical scenario months | 114 |
+| Equity / Bonds / Alternatives / Cash | 45% / 40% / 10% / 5% |
+| U.S. / Japan / Emerging within equity | 35% / 25% / 40% |
+| Public-market expected return | 3.4% |
+| Expected volatility | 7.0% |
+| Inflation reference | 3.5% |
 
-## 4. 牛市场景
+The suggested target was 7.0% within a 7.0%–12.0% policy range. The economic floor from inflation and operating cost was 4.5%.
 
-### 4.1 公开数据与配置建议
+### Portfolio and handoff
 
-委员会选择“牛市”，点击“运行公开数据引擎”。系统实际返回：
+- The initial proposed sleeves satisfied the hard controls; optimization was not triggered.
+- The committee approved the saved proposal through its own account.
+- The system generated 12 planned equity trades totalling USD 4,500,000.
+- Separate execution users completed maker-checker review.
+- The application advanced to monitoring and rebalancing.
 
-- 数据日期：2026-06-01
-- 数据来源：8 个
-- 历史样本：114 个月
-- 大类资产：债券 40%、现金 5%、股票 45%、另类 10%
-- 股票内部：美股 35%、日本 25%、新兴市场 40%
-- 组合预期收益：3.4%
-- 预期波动率：7.0%
-- 通胀率：3.5%
+## Balanced scenario
 
-委员会随后真实点击提交和批准。
+### Public-data recommendation
 
-### 4.2 目标收益率与 Sleeve 目标
+| Measure | Result |
+|---|---:|
+| Observation date | 2026-06-01 |
+| Sources | 8 |
+| Historical scenario months | 46 |
+| Equity / Bonds / Alternatives / Cash | 35% / 35% / 25% / 5% |
+| U.S. / Japan / Emerging within equity | 70% / 15% / 15% |
+| Public-market expected return | 6.8% |
+| Expected volatility | 5.9% |
+| Inflation reference | 3.5% |
 
-- 系统建议目标收益率：7.0%
-- 允许范围：7.0% 至 12.0%
-- 公开市场预期：3.4%
-- 通胀加经营底线：4.5%
+The suggested target was 6.8% within a 4.0%–8.0% policy range. The committee entered and approved 6.76%; the economic floor was 4.5%.
 
-委员会提交并批准 7.0% 后，系统生成：
+### Backtest and optimization
 
-| Sleeve | 股票内部权重 | 目标收益率 | 目标 Beta | 最大回撤预算 |
-|---|---:|---:|---:|---:|
-| 美股 | 35% | 5.4% | 1.81 | -23.8% |
-| 日本 | 25% | 11.0% | 1.35 | -28.3% |
-| 新兴市场 | 40% | 12.9% | 1.34 | -50.0% |
+- The initial U.S. and Japan sleeves passed.
+- The emerging-market sleeve failed its beta control.
+- The sleeve-specific optimizer produced three complete compliant alternatives.
+- The minimum-turnover option corrected the beta gap without unnecessary changes to passing sleeves.
 
-页面同时显示公开市场基准收益 5.8%、目标缓冲 0.0%、股票需填补收益 1.2%。
+### Approval and handoff
 
-### 4.3 拟投资组合与回测
+- Execution submitted the selected option and the committee approved it through a separate login.
+- The system generated 12 planned equity trades totalling USD 3,500,000.
+- Execution user 1 submitted the plan; execution user 2 independently approved the review.
+- Steps 01–08 displayed complete and step 09 became current.
 
-执行人员在系统内建立 12 只股票的拟投资组合。每个 Sleeve 4 只股票，成长和价值各 2 只，每只 25%，未超过 35% 单股上限。
+## Observations
 
-| Sleeve | 观察数 | 回测收益 / 目标 | 回测 Beta / 目标 | 最大回撤 / 预算 | 系统结果 |
-|---|---:|---:|---:|---:|---|
-| 美股 | 157 周 | 26.8% / 5.4% | 0.90 / 1.81 | -18.5% / -23.8% | 通过 |
-| 日本 | 157 周 | 18.4% / 11.0% | 0.77 / 1.35 | -20.6% / -28.3% | 通过 |
-| 新兴市场 | 154 周 | 19.0% / 12.9% | 0.94 / 1.34 | -17.9% / -50.0% | 通过 |
+### Dashboard task consistency
 
-三个 Sleeve 的硬性条件均通过，系统正确跳过优化。Beta 差异显示为复核提示，没有被错误地作为硬性失败。
+At this test checkpoint, the dashboard could show no pending task while an actionable approval or sleeve confirmation still existed inside the annual workflow. The saved business state and action itself were correct, but the reminder could mislead a user. The recommended improvement is to derive dashboard tasks from the same role-and-state query used by workflow actions and link directly to the relevant step.
 
-### 4.4 审批和实施交接
+### Market-data cutoff labelling
 
-- 委员会真实点击批准。
-- 系统按 45% 股票配置生成 US$4,500,000 的 12 笔交易计划。
-- 执行人员 1 提交复核。
-- 执行人员 2 独立登录并复核通过。
-- 页面实际进入“监控与再平衡”。
+The run date and the latest available market-data date differed. This may be valid for a non-trading day or provider update schedule, but the interface should display both “provider latest available trading date” and “system run time” to prevent misinterpretation.
 
-牛市结论：**通过；本次不需要优化。**
+## Excluded from this retest
 
-## 5. 平衡市场景
+- Broker-position import and security classification
+- Monthly corridor checks and rebalance options
+- Three-trading-day completion review
+- Non-equity NAV approval
+- Report generation, PDF inspection, publication, and language switching
 
-### 5.1 公开数据与配置建议
+These downstream functions were covered by the complete bear-scenario test.
 
-委员会选择“平衡市”，点击“运行公开数据引擎”。系统实际返回：
+## Conclusion
 
-- 数据日期：2026-06-01
-- 数据来源：8 个
-- 历史样本：46 个月
-- 大类资产：债券 35%、现金 5%、股票 35%、另类 25%
-- 股票内部：美股 70%、日本 15%、新兴市场 15%
-- 组合预期收益：6.8%
-- 预期波动率：5.9%
-- 通胀率：3.5%
-
-委员会真实点击提交并批准。
-
-### 5.2 目标收益率与 Sleeve 目标
-
-- 系统建议目标收益率：6.8%
-- 允许范围：4.0% 至 8.0%
-- 委员会实际录入并批准：6.76%
-- 通胀加经营底线：4.5%
-
-系统生成：
-
-| Sleeve | 股票内部权重 | 目标收益率 | 目标 Beta | 最大回撤预算 |
-|---|---:|---:|---:|---:|
-| 美股 | 70% | 12.2% | 1.00 | -17.4% |
-| 日本 | 15% | 10.4% | 1.00 | -24.3% |
-| 新兴市场 | 15% | 3.1% | 1.00 | -49.5% |
-
-页面同时显示公开市场基准收益 7.9%、目标缓冲 1.1%、股票需填补收益 0.0%。
-
-### 5.3 初始回测
-
-| Sleeve | 观察数 | 回测收益 / 目标 | 回测 Beta / 目标 | 最大回撤 / 预算 | 初始结果 |
-|---|---:|---:|---:|---:|---|
-| 美股 | 157 周 | 26.8% / 12.2% | 0.90 / 1.00 | -18.5% / -17.4% | 通过 |
-| 日本 | 157 周 | 18.4% / 10.4% | 0.77 / 1.00 | -20.6% / -24.3% | 通过 |
-| 新兴市场 | 154 周 | 19.0% / 3.1% | 1.06 / 1.00 | -17.9% / -49.5% | Beta 未通过 |
-
-收益率只设下限，高于目标没有被判为失败。系统只把真正失败的新兴市场 Sleeve 送入优化。
-
-### 5.4 三组优化方案
-
-执行人员点击“生成三组优化方案”后，系统先保留原 Ticker，只调整新兴市场内部权重：
-
-| 方案 | 侧重 | Beta | 收益率 | 最大回撤 | 单边换手率 | Ticker 更换 | 结果 |
-|---|---|---:|---:|---:|---:|---|---|
-| 1 | 最小换手 | 1.042 | 19.8% | -17.6% | 2% | 无 | 通过 |
-| 2 | Beta 最接近目标 | 1.000 | 21.6% | -16.8% | 7% | 无 | 通过 |
-| 3 | 回撤缓冲 | 1.019 | 22.7% | -14.6% | 13% | 无 | 通过 |
-
-方案 1 只把 0005 从 25% 提高到 27%，把 1299 从 25% 降到 23%。执行人员实际选择方案 1 并提交审批。
-
-### 5.5 审批和实施交接
-
-- 执行人员点击“提交委员会表决”。
-- 委员会独立登录并点击“同意并批准”。
-- 系统按 35% 股票配置生成 US$3,500,000 的 12 笔交易计划。
-- 执行人员 1 提交交易计划复核。
-- 执行人员 2 独立登录并点击“复核通过”。
-- 页面提示“交易计划已由第二人复核，进入监控与再平衡”，步骤 01 至 08 显示完成，步骤 09 显示当前。
-
-平衡市结论：**初始新兴市场未通过；优化器成功给出三套合规方案，选择后完整推进至监控交接。**
-
-## 6. 本轮发现的问题
-
-### BB-E2E-20260805-01 首页待办与年度流程状态不一致
-
-- 严重程度：中等。
-- 现象：委员会登录后首页显示“当前没有待处理事项”，但进入“年度流程”后存在待批准组合和“同意并批准”按钮。
-- 同类现象：执行人员首页也曾未提示当前 Sleeve 确认任务，但进入年度流程后可以正常操作。
-- 影响：不阻塞业务动作，但用户可能误以为没有工作，降低流程提醒的可信度。
-- 建议：首页待办统一读取年度流程当前状态和当前角色可执行动作；存在可操作按钮时必须生成待办，并直接链接到对应步骤。
-- 本轮处理：仅记录，未修改代码。
-
-### BB-E2E-20260805-02 回测截止日期需要明确数据口径
-
-- 现象：测试日为 2026-08-05，回测页显示的市场数据截止日为 2026-08-03。
-- 判断：可能是最新可用交易日或数据供应商最后更新日，不足以直接判定为计算错误。
-- 建议：页面明确显示“数据供应商最后可用交易日”和“系统运行时间”，避免业务人员把两者理解为日期不一致。
-- 本轮处理：作为说明改进项记录，未修改代码。
-
-## 7. 未包含在本轮的范围
-
-下列环节已经在熊市正式端到端测试中验证，但本轮没有重复执行，因此本报告不把它们计为牛市或平衡市通过项：
-
-- 富途格式持仓导入和 Ticker 归类
-- 月度 corridor 检查和两组再平衡方案
-- 三个交易日到期复核
-- 非股票净值录入与委员会批准
-- 报告生成、PDF 下载、发布和中英文切换
-
-## 8. 最终判断
-
-1. 牛市从全新数据库真实点击至监控交接，主流程通过，未触发优化。
-2. 平衡市从全新数据库真实点击至监控交接，初始新兴市场失败后，分 Sleeve 优化器生成三套合规方案并成功推进。
-3. 本次结果支持当前公开数据、目标拆解、回测、分 Sleeve 优化、委员会审批和双人交易复核逻辑继续保留。
-4. 下一步最值得优先处理的是首页待办提醒一致性，而不是继续修改投资计算逻辑。
+The bull scenario passed from a clean database to monitoring without optimization. The balanced scenario passed after the optimizer resolved an emerging-market beta exception while leaving passing sleeves unchanged. The evidence supports the current public-data, target decomposition, sleeve backtest, optimizer, committee approval, and execution maker-checker design. It does not constitute production or financial-model certification.

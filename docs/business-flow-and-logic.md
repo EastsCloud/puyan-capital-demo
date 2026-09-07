@@ -1,93 +1,99 @@
-# isater 业务流程与计算逻辑
+# Business Flow and Calculation Logic
 
-## 1. 已验证案例
+## 1. Reference scenario
 
-本说明使用 2026 年平衡市真实跑通案例：本金 USD 10,000,000，公开数据截至 2026-06-01，共 8 个来源和 46 个历史情景月份。
+The documented balanced-market validation used USD 10,000,000 principal, public data through 2026-06-01, eight data sources, and 46 historical scenario months.
 
-系统建议大类资产为股票 35%、债券 20%、另类 25%、现金 20%；股票内部为美股 70%、日股 15%、新兴市场 15%。因此三组 Sleeve 占整个组合分别为 24.5%、5.25%、5.25%。委员会批准的年度目标收益率为 5.071258%。
+The engine recommended 35% equity, 20% bonds, 25% alternatives, and 20% cash. Within equity, it recommended 70% U.S., 15% Japan, and 15% emerging markets. The resulting total-portfolio sleeve weights were 24.50%, 5.25%, and 5.25%. The committee-approved annual target return was 5.071258%.
 
-## 2. 公开数据引擎
+These values are test evidence, not current investment advice.
 
-系统按管理员维护的权威来源顺序取得通胀、利率、股票指数、债券和风险指标。先识别与委员会情景相似的历史月份，再按收益、风险和相关性形成配置建议。来源失败会留下记录并按顺序尝试后备来源，不使用虚构样本替代正式数据。
+## 2. Public-data engine
 
-债券未来 12 个月预期收益采用最新美国 10 年期国债收益率作为持有至期的 carry 代理，现金采用最新 3 个月短期国债利率。历史利率只用于估计风险，不默认加入久期价格调整；如未来需要引入总回报或久期观点，必须作为新的管理员政策单独审批和版本化。
+The system requests inflation, rates, equity indices, bond inputs, and risk indicators according to administrator-maintained source priority. It identifies historical months comparable to the selected committee scenario and converts return, risk, and correlation evidence into an allocation recommendation.
 
-## 3. 目标收益率
+Every request records source, observation date, retrieval time, and failure reason. A failed source moves to the next approved adapter; the production path does not silently replace missing data with invented samples.
 
-委员会在情景范围内批准目标。系统把运营成本、通胀和公开数据期望收益同时作为参考，并保证目标不低于经济下限。目标是最低要求，实际收益超过目标不会因此被判定失败。
+The latest U.S. 10-year Treasury yield is used as a 12-month bond carry proxy and the latest 3-month Treasury rate as the cash proxy. Historical rate changes estimate risk but do not automatically create a duration-price forecast. A future total-return or duration view would require a separately approved, versioned policy.
 
-## 4. Sleeve 收益率与目标 Beta
+## 3. Target return
 
-大类资产期望贡献满足：
+The committee approves a target within the scenario policy range. The screen presents operating cost, inflation, and public-market expectation as references and enforces the economic floor. The target is a minimum requirement: performance above target is not a failure condition.
 
-`组合目标收益 = 股票权重 × 股票目标收益 + 债券权重 × 债券收益 + 另类权重 × 另类收益 + 现金权重 × 现金收益`
+## 4. Sleeve return and target beta
 
-股票目标再按三组 Sleeve 的批准权重分配。每组使用本市场无风险利率和基准期望收益，通过 CAPM 反推目标 Beta：
+The allocation identity is:
 
-`目标 Beta = (Sleeve 目标收益 - 本市场无风险利率) / (本市场基准收益 - 本市场无风险利率)`
+`portfolio target = equity weight × equity target + bond weight × bond return + alternative weight × alternative return + cash weight × cash return`
 
-美股使用美国无风险利率和美股基准，日股使用日本无风险利率和日股基准；新兴市场按港股及 A 股批准权重形成合成输入。不能把统一的美国无风险利率用于所有市场。
+The equity target is allocated across the three approved sleeves. Each sleeve uses its own risk-free rate and benchmark expectation to derive target beta through CAPM:
 
-目标 Beta 是为实现 Sleeve 目标收益设置的组合约束；个股 Beta 则由该股票和同市场基准的历史收益协方差计算：
+`target beta = (sleeve target return - local risk-free rate) / (local benchmark return - local risk-free rate)`
 
-`个股 Beta = Cov(个股收益, 市场基准收益) / Var(市场基准收益)`
+U.S. equity uses U.S. inputs, Japan uses Japanese inputs, and emerging markets use a committee-approved Hong Kong/China A-share blend. One U.S. risk-free rate is not applied indiscriminately to every market.
 
-## 5. 拟投资组合与回测
+Target beta is a portfolio constraint. Each security's historical beta is calculated against the matching market benchmark:
 
-股票只能来自美国、日本、香港和中国 A 股的系统 Ticker 库，并归入三组 Sleeve。每个市场风格默认 2 至 5 支，单一证券上限由管理员维护。
+`security beta = Cov(security return, benchmark return) / Var(benchmark return)`
 
-回测只测试拟投资股票组合，并按 Sleeve 分开判断：
+## 5. Proposed portfolio and backtest
 
-- Beta：与目标 Beta 的相对偏差在管理员容差内。
-- 收益：不得低于目标收益下限；超过目标不是失败。
-- 最大回撤：不得超过 Sleeve 风险预算及相对容差。
-- 基准：每个 Sleeve 的目标、个股 Beta 和回测必须使用同一市场口径。
+Equities must come from the approved U.S., Japan, Hong Kong, and China A-share universe and must belong to one of the three sleeves. Style buckets normally require two to five securities, while administrator policy controls single-name limits.
 
-已验证的 36 个月周频回测中，美股和日股通过，新兴市场 Beta 为 1.06 未通过。
+The 36-month weekly backtest evaluates each sleeve independently:
 
-## 6. 优化优先级
+- **Beta:** relative deviation from target must remain within tolerance.
+- **Return:** must not fall below the target floor; excess return is not a hard failure.
+- **Maximum drawdown:** must remain within the sleeve risk budget and relative tolerance.
+- **Benchmark consistency:** target, security beta, and backtest must use the same market basis.
 
-优化器按 Sleeve 分开求解，不让已通过 Sleeve 参与无关调整：
+In the balanced validation, the U.S. and Japan sleeves passed while emerging-market beta of 1.06 failed its target control.
 
-1. 保留全部 Proposed Ticker，只调整权重。
-2. 优先增加有助于修正目标偏差的股票、降低反方向股票权重。
-3. 同时满足收益、Beta、最大回撤、单股上限和风格数量。
-4. 权重调整无解时，才搜索最少数量的 Ticker 更换。
-5. 按“更换 1 支、再更换 2 支”的顺序搜索，找到第一个可行层级即停止，不做不必要的换票。
-6. 把所有未通过 Sleeve 的独立结果合并为三套完整方案，按最小换手、Beta 贴近目标和回撤缓冲区分；执行小组只需选择一套完整方案提交。
+## 6. Optimization order
 
-案例中选择最小换手方案，只把新兴市场价值组 `0005` 从 25% 调到 27%，把 `1299` 从 25% 调到 23%，无需更换 Ticker。
+The optimizer isolates failed sleeves so passing sleeves are not changed unnecessarily:
 
-## 7. 审批与实施
+1. Keep all proposed securities and adjust weights.
+2. Increase securities that reduce the control gap and decrease securities that move in the wrong direction.
+3. Enforce return, beta, drawdown, single-name, and style-count constraints simultaneously.
+4. Search for security replacements only when weight-only optimization has no feasible result.
+5. Test one replacement before two and stop at the first feasible replacement count.
+6. Merge independently solved sleeves into three complete options differentiated by turnover, beta fit, and drawdown buffer.
 
-执行小组提交批准组合，委员会按三分之二规则表决。目前只有一名委员时，一票同意即可通过。批准后系统按本金和权重产生标准交易金额；一名执行人员提交，另一名执行人员复核，不能由同一用户完成两步。
+The balanced validation's minimum-turnover plan changed emerging-market value weights only: `0005` moved from 25% to 27% and `1299` from 25% to 23%; no security replacement was required.
 
-## 8. 监控与再平衡
+## 7. Approval and implementation
 
-每日导入只更新股票持仓和股票市值曲线。月度检查在风格层计算：
+The Execution Team submits the selected portfolio. The Decision Committee votes under a two-thirds rule; a one-person initial committee therefore requires that member's approval.
 
-`允许下限 = 目标权重 × (1 + 下限相对漂移)`
+After approval, the system converts principal and weights into standardized trade amounts. One Execution Team user submits the plan and a different Execution Team user reviews it. The same account cannot perform both steps.
 
-`允许上限 = 目标权重 × (1 + 上限相对漂移)`
+Executed fills are imported separately, previewed, normalized, selected, and reconciled against the approved plan. Exceptions remain visible and require independent review rather than silently changing the approved portfolio.
 
-默认相对 Corridor 为上下 20%。案例中美股成长为 11.4%，低于 28%-42%，最少买入 USD 805,556；美股价值为 58.6%，高于 28%-42%，最少卖出 USD 1,000,000。
+## 8. Monitoring and rebalancing
 
-方案完成期限为 2026-08-07。第一次期限日导入仍有两组越界，系统记录逾期并通知两个业务角色；同日修正持仓后六个风格组全部回到范围，方案自动变为完成，旧逾期记录仍保留。
+Daily position imports update equity holdings and the equity market-value curve. Monthly monitoring applies style-level relative corridors:
 
-## 9. 报告与归因
+`lower bound = target weight × (1 + lower relative drift)`
 
-报告期末总净值由股票市值、批准的债券净值、另类净值和现金净值组成。报告显示目标达成、三组 Sleeve 的期间收益、Sharpe、Sortino 和最大回撤，以及各大类资产的净值和收益贡献。
+`upper bound = target weight × (1 + upper relative drift)`
 
-股票归因使用 Brinson-Fachler 算术模型，分为市场、配置、择股和交互四部分，并把非股票资产贡献单独列示：
+With a default ±20% relative corridor, the validated case identified U.S. Growth below its range and U.S. Value above its range. The system generated both a minimum-trade plan and a return-to-target plan.
 
-`股票实际收益 = 市场收益 + 配置效应 + 择股效应 + 交互效应`
+Accepted plans must be completed within three trading days. A due-date import persists overdue alerts when styles remain outside the corridor; a corrected same-day import can complete the plan while preserving the earlier overdue record.
 
-报告使用与组合同期间、同为美元口径的可投资基准复权价格：美股为 SPY，日股为 EWJ；新兴市场按委员会批准的 A 股/港股比例合成 ASHR 与 EWH。美元 ETF 复权价格同时反映分红和汇率影响，避免把不同交易日或未换汇的本地指数硬拼在一起。
+## 9. Reporting and attribution
 
-2026-07-31 至 2026-08-04 的已验证报告结果为：市场贡献 `+0.91%`、配置贡献 `-0.60%`、择股贡献 `-0.31%`、交互贡献约 `0.00%`、非股票贡献 `0.00%`，合计 `0.00%`，与组合总收益完全勾稽。配置贡献归入决策评价，择股贡献归入执行评价；市场贡献不归给任何角色。
+Period-end total NAV combines equity market value with approved bond, alternative, and cash NAV. Reports show target attainment, sleeve returns, Sharpe, Sortino, maximum drawdown, asset-class NAV, and return contribution.
 
-如果任一基准在报告起止日缺少有效数据，系统不会前移日期或填入样本，而是明确暂停纯择股标签并保留数据质量记录。
+Equity attribution uses an arithmetic Brinson-Fachler structure and separates market, allocation, security selection, and interaction. Non-equity contribution is shown separately:
 
-所有关键操作、审批、输入版本和结果均写入不可篡改审计记录。
+`equity actual return = market return + allocation effect + selection effect + interaction effect`
 
-年度配置模型的校准年限、情景阈值、配置步长、大类资产上下限、股票市场上下限和风险厌恶系数由管理员版本化维护。每次公开数据计算同时记录参数版本、生效时间和实际参数快照；旧的仅展示型 `scenarioBands` 和 `allocationDefaults` 已退出有效维护表单。
+The validated benchmark set used same-period USD adjusted prices: SPY for U.S. equity, EWJ for Japan, and an approved ASHR/EWH blend for emerging markets. USD ETF adjusted prices incorporate distributions and currency effects more consistently than combining unmatched local indices.
+
+The documented report reconciled market `+0.91%`, allocation `-0.60%`, selection `-0.31%`, interaction approximately `0.00%`, and non-equity `0.00%` to total return `0.00%`.
+
+If a benchmark lacks valid start- or end-date data, the system does not move dates or insert sample values. It suspends the pure-selection label and records the data-quality limitation.
+
+All material actions, approvals, input versions, source records, and results produce immutable audit events. Annual calibration periods, thresholds, grids, bounds, and risk-aversion settings are effective-dated and versioned; every annual run stores the applied version and parameter snapshot.

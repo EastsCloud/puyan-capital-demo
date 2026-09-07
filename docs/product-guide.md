@@ -1,57 +1,58 @@
-# isater 产品使用说明
+# Product Guide
 
-## 1. 系统定位
+## Product purpose
 
-isater 是 Puyan Capital 单一自营投资组合的投资治理系统。系统把年度目标、资产配置、股票组合、回测优化、审批实施、每日监控、再平衡和报告放在同一条可审计流程中。
+Isater is an investment-governance system for a single proprietary portfolio. It brings annual targets, asset allocation, equity construction, backtesting, optimization, approvals, implementation, daily monitoring, rebalancing, and reporting into one auditable process.
 
-## 2. 三类用户
+## Roles
 
-| 角色 | 主要工作 | 查看权限 |
+| Role | Primary responsibilities | Access boundary |
 |---|---|---|
-| 系统管理员 | 用户、密码重置、业务参数、数据源顺序、外部数据连接 | 可查看业务流程和审计，不参与业务表决 |
-| 决策委员会 | 本金、年度情景、目标收益率、组合及非股票净值审批 | 可只读查看执行小组页面 |
-| 执行小组 | 拟定股票组合、回测、优化、提交审批、双人复核、持仓导入、再平衡和报告 | 可查看委员会已批准结果，不能代替委员会表决 |
+| System Administrator | Users, password resets, parameters, source priority, and external-data connections | May inspect workflow and audit history; does not cast investment votes |
+| Decision Committee | Principal, annual scenario, target return, portfolio approval, and non-equity NAV approval | Read-only access to execution pages |
+| Execution Team | Portfolio proposal, backtest, optimization, submission, maker-checker review, position imports, rebalancing, and reporting | May use approved committee results; cannot vote on behalf of the committee |
 
-## 3. 年度流程
+## Annual workflow
 
-1. 委员会生效组合本金并启动年度流程。
-2. 委员会运行公开数据引擎，选择牛市、平衡市或熊市情景并接受系统配置建议。
-3. 委员会在管理员维护的范围内确定目标收益率。
-4. 系统把目标拆解为美股、发达市场非美股（日股）和新兴市场（港股及 A 股）的收益与 Beta 目标。
-5. 执行小组在系统 Ticker 库内拟定组合。
-6. 系统按 Sleeve 分别回测收益率、Beta 和最大回撤。
-7. 未通过时，系统先调整原 Ticker 权重；仍不能通过时才做最少数量的 Ticker 更换，并给出三套合规方案。
-8. 执行小组选择方案并提交委员会表决；当前一人委员会可独立形成三分之二通过结果。
-9. 执行小组产生标准交易计划，由另一名执行人员复核。
-10. 进入每日持仓导入、月度 Corridor 检查和再平衡。
-11. 执行小组提交非股票净值，委员会批准后生成并发布报告。
+1. The committee activates portfolio principal and starts the annual cycle.
+2. The committee runs the public-data engine, selects a bull, balanced, or bear scenario, and accepts the allocation recommendation.
+3. The committee approves a target return within the administrator-maintained policy range.
+4. The system decomposes the target into U.S., developed ex-U.S. (Japan), and emerging-market (Hong Kong and China A-share) return and beta targets.
+5. The Execution Team builds a proposed portfolio from the approved security universe.
+6. The system backtests return, beta, and maximum drawdown by sleeve.
+7. If a sleeve fails, the optimizer first changes existing weights and only then searches the minimum number of security replacements.
+8. The Execution Team selects a compliant plan and submits it for committee approval.
+9. The system generates a trade plan; one execution user submits it and another reviews it.
+10. Daily position imports, monthly corridor checks, and rebalancing become active.
+11. The Execution Team submits non-equity NAV; after committee approval, the system generates and publishes the report.
 
-## 4. 日常使用
+## Routine operation
 
-- 每日：导入富途持仓 CSV；系统核对批准 Ticker、交易所、数量、价格和市值，并更新股票市值曲线。
-- 每月：执行风格层 Corridor 检查；越界时系统给出“最少交易”和“回到目标”两套标准方案。
-- 方案接受后：必须在 3 个交易日内完成。期限日的持仓导入会自动复核，逾期和完成结果同时通知执行小组与委员会。
-- 报告：前端分三屏显示净值与目标、Sleeve 风险指标，以及市场、配置、择股、交互和非股票贡献，同时支持 PDF 下载。
+- **Daily:** import a broker-position CSV. The system reconciles approved symbols, exchanges, quantities, prices, and market values and updates the equity-value curve.
+- **After execution:** import an executed-fill CSV. Preview rows, confirm normalized securities, select rows, and reconcile actual fills against the approved plan.
+- **Monthly:** run style-level corridor checks. Out-of-range styles receive both a minimum-trade plan and a return-to-target plan.
+- **Rebalancing:** accepted plans have a three-trading-day completion window. Due-date imports automatically determine whether the plan is complete or overdue.
+- **Reporting:** review NAV and target attainment, sleeve risk metrics, and market/allocation/selection/interaction attribution; download a PDF and record publication or delivery.
 
-## 5. 页面说明
+## Main screens
 
-- 总览：本金、当前年度步骤、公开数据日期和当前角色。
-- 年度流程：顶部 01–11 步是完整流程导航。已完成步骤可点击只读回看，当前步骤按角色显示工作按钮，未来步骤锁定；历史页面不提供修改或审批操作。
-- 投资组合：查看当前批准版本、三组 Sleeve 目标和个股权重。
-- 监控：每日持仓、股票曲线、月度 Corridor、再平衡方案和到期复核。
-- 报告：查看已发布报告和 PDF。
-- 管理员页面：用户、参数、数据源、外部数据连接和不可篡改审计记录。
+- **Dashboard:** principal, current annual step, public-data date, and role-specific tasks.
+- **Annual Workflow:** steps 01–11. Completed steps reopen in read-only mode, the current step exposes role-controlled actions, and future steps remain locked.
+- **Approved Portfolio:** effective version, principal, sleeve targets, market/style classifications, and approved security weights.
+- **Monitoring:** positions, equity curve, corridor checks, rebalance plans, due-date follow-up, fill reconciliation, and external cash flows.
+- **Reports:** versioned reports, attribution, PDF generation, publication, and delivery history.
+- **Administration:** users, parameters, source order, encrypted external credentials, reset controls for demo environments, and immutable audit events.
 
-## EODHD 数据连接
+## External-data connection
 
-- 系统管理员在“数据连接”页面录入 EODHD API Token，不录入 EODHD 网站登录密码。
-- Token 在后台加密保存；页面只显示末四位，审计记录不保存明文。
-- 保存后必须点击“测试连接”。测试会向 EODHD 请求 AAPL.US 的真实复权价格并记录结果和时间。
-- 启用后，回测证券价格、优化历史序列和报告基准优先使用 EODHD；若单个请求失败，系统记录原因后使用公开后备源。
-- 年度宏观与市场情景数据仍由公开数据引擎从官方来源取得，不依赖 EODHD。
+- Administrators enter an EODHD API token, never an EODHD account password.
+- The API encrypts the token at rest; the browser sees only its last four characters.
+- A connection test requests real adjusted-price observations before the provider is enabled.
+- Backtests, optimization series, and report benchmarks prefer EODHD and record any fallback source and reason.
+- Official macroeconomic inputs remain separate from EODHD and retain their own provenance.
 
-## 6. 使用边界
+## Operating boundary
 
-- 本机演示数据库和演示密码仅用于同事评审，不能直接用于生产。
-- 生产上线前必须配置云 PostgreSQL、备份、邮件服务、域名 HTTPS 和付费数据账号。
-- 报告归因使用同期间美元基准复权序列；基准不完整时系统明确不把市场收益写成择股能力。
+- Demo users and local data must not be reused in production.
+- A production rollout requires managed infrastructure, licensed data, security and disaster-recovery controls, real broker-export acceptance, and financial-model validation.
+- If same-period benchmark data is incomplete, the report must not label unexplained market movement as security-selection skill.

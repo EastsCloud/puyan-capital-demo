@@ -1,16 +1,16 @@
-# isater 评审账号说明
+# Review Account Policy
 
-公开仓库不提供固定用户名或密码。评审环境应由管理员建立临时账号，并通过安全渠道单独发送给评审人员。
+The public repository does not provide fixed usernames or passwords. An administrator should create temporary accounts for each review environment and share them privately.
 
-建议至少准备以下四个互不共用的账号：
+Prepare at least four distinct accounts:
 
-| 角色 | 数量 | 用途 |
+| Role | Count | Purpose |
 |---|---:|---|
-| 系统管理员 | 1 | 用户、参数和外部数据连接管理 |
-| 决策委员会 | 1 | 年度目标和投资组合审批 |
-| 执行小组（提交人） | 1 | 交易实施、持仓及成交导入 |
-| 执行小组（复核人） | 1 | 对另一执行人员的操作进行复核 |
+| System Administrator | 1 | User, parameter, and external-data configuration |
+| Decision Committee | 1 | Annual target and portfolio approval |
+| Execution Team — maker | 1 | Trade implementation, position import, and fill import |
+| Execution Team — checker | 1 | Independent review of another execution user's action |
 
-评审人员应测试真实退出和重新登录、角色边界、管理员重置密码、首次登录强制改密，以及执行人员不能复核本人操作的限制。
+Reviewers should test real logout and login, role boundaries, administrator password reset, forced first-login password change, and the rule that an execution user cannot review their own action.
 
-生产部署必须重新建立正式用户，不得沿用公开文档、聊天记录或本机演示环境中的账号密码。
+Production users must be created separately. Never reuse credentials from public documentation, chat messages, or a local demo environment.

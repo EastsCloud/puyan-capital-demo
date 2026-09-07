@@ -1,69 +1,70 @@
 # Puyan Capital Investment Control Center
 
-这是一个面向小型投资团队的投资管理与治理系统演示项目。项目覆盖从年度公开数据、目标收益、资产分层、拟投资组合、历史回测、优化、委员会审批、交易实施，到监控、非股票净值和报告归因的完整流程。
+A portfolio-governance and investment-operations platform designed for a small investment team. The application connects annual market-data review, return targets, asset sleeves, proposed portfolios, historical backtesting, optimization, committee approval, trade implementation, monitoring, non-equity NAV, reporting, and attribution in one auditable workflow.
 
-在线演示：[demo.puyancapital.com](https://demo.puyancapital.com)
+Live demo: [demo.puyancapital.com](https://demo.puyancapital.com)
 
-> 本仓库用于作品集展示和技术交流，不构成投资建议，也不应直接作为生产交易系统使用。在线演示账号和数据凭证不存放在代码仓库中。
+> This repository is published as a software-engineering portfolio project. It is not investment advice and is not presented as a production trading, custody, or order-execution system. Demo credentials and provider secrets are never stored in this repository.
 
-## 主要能力
+## Highlights
 
-- 三角色权限：系统管理员、决策委员会、执行团队
-- 年度投资流程及状态控制
-- EODHD 等外部数据适配与数据来源留痕
-- 分市场组合构建、Beta/回撤检查、历史回测与优化
-- 委员会审批、执行双人复核和不可变审计记录
-- 持仓、成交回单及外部现金流 CSV 导入
-- 成交导入预览、勾选、证券代码识别与计划差异核对
-- 版本化参数、报告归因、发送记录与数据导入台账
-- 中英文、桌面端和移动端响应式界面
+- Three server-enforced roles: System Administrator, Decision Committee, and Execution Team
+- State-controlled 11-step annual investment workflow
+- External-data adapters with source provenance and fallback records
+- Multi-market portfolio construction, beta and drawdown controls, historical backtesting, and optimization
+- Committee voting, execution-team maker-checker review, and immutable audit events
+- CSV imports for proposed holdings, executed fills, current positions, and external cash flows
+- Import preview, row selection, security lookup, exchange normalization, and plan-versus-fill reconciliation
+- Effective-dated parameters, versioned reports, performance attribution, delivery records, and import registry
+- Responsive Chinese/English interface for desktop and mobile browsers
 
-## 技术结构
+## Technology
 
-- Web：React 19、TypeScript、Vite
-- API：Node.js、Fastify、Zod
-- 数据库：PostgreSQL、版本化 SQL migration
-- 安全：Argon2id 密码、HttpOnly 会话、服务端权限校验、AES-256-GCM 外部凭证加密
-- 工程：pnpm workspace、Vitest、Render 部署配置
+- **Web:** React 19, TypeScript, Vite
+- **API:** Node.js, Fastify, Zod
+- **Database:** PostgreSQL with versioned SQL migrations
+- **Security:** Argon2id passwords, HttpOnly sessions, API-side authorization, AES-256-GCM credential encryption
+- **Engineering:** pnpm workspaces, Vitest, production builds, Render deployment blueprint
 
 ```text
 system/
-  apps/web/          React 前端
-  apps/api/          Fastify API、认证、流程和外部数据适配
-  packages/domain/   独立业务规则与权限策略
-  db/migrations/     PostgreSQL 数据库迁移
-docs/                产品、架构、业务流程和测试文档
+  apps/web/          React client
+  apps/api/          Fastify API, authentication, workflows, and data adapters
+  packages/domain/   Framework-independent business rules and role policies
+  db/migrations/     Versioned PostgreSQL migrations
+docs/                Product, architecture, workflow, and verification documents
 ```
 
-更完整的设计说明见 [架构文档](docs/architecture.md) 和 [业务流程](docs/business-flow-and-logic.md)。
+See [Architecture](docs/architecture.md) and [Business Flow and Calculation Logic](docs/business-flow-and-logic.md) for more detail.
 
-## 本地运行
+## Local setup
 
-要求 Node.js 22+、pnpm 10，并准备 PostgreSQL。
+Prerequisites: Node.js 22+, pnpm 10, and PostgreSQL.
 
-1. 将 `system/.env.example` 复制为 `system/.env`，填写仅供本机使用的配置。
-2. 在 `system/` 运行 `pnpm install`。
-3. 运行 `pnpm --filter @isater/api migrate`。
-4. 按 `docs/quick-start.md` 启动 API 和 Web。
+1. Copy `system/.env.example` to `system/.env` and provide local-only values.
+2. Run `pnpm install` inside `system/`.
+3. Run `pnpm --filter @isater/api migrate`.
+4. Follow [Quick Start](docs/quick-start.md) to launch the API and web client.
 
-任何 API Token、管理员初始密码、生产数据库地址和加密密钥都只能通过环境变量或管理页面配置，不得提交到 Git。
+API tokens, administrator bootstrap passwords, production database URLs, and encryption keys must be supplied through local or hosting-provider secret storage and must never be committed.
 
-## 验证
+## Verification
 
-在 `system/` 中运行：
+Run from `system/`:
 
 ```bash
 pnpm check
 ```
 
-该命令依次执行类型检查、自动化测试和生产构建。人工验收范围及当前边界见 [发布状态](RELEASE_STATUS.md)。
+This runs type checking, automated tests, and the production build. Manual acceptance coverage and known limitations are documented in [Release Status](RELEASE_STATUS.md).
 
-## 仓库说明
+## Repository policy
 
-- 本公开仓库用于求职作品集展示。
-- 正式部署继续由私有仓库维护，公开仓库不保存生产环境变量、真实账户、真实持仓或客户数据。
-- 双仓库同步约定见 [仓库维护说明](docs/repository-workflow.md)。
+- This public repository is the portfolio/showcase mirror.
+- Production deployment continues from a separate private repository.
+- The public mirror excludes production environment values, real accounts, databases, holdings, trades, uploaded files, and customer data.
+- See [Repository Workflow](docs/repository-workflow.md) for the dual-repository process.
 
-## 使用限制
+## License and use
 
-源码仅供查看、评审和作品集展示。除非仓库所有者另行授权，不授予复制、再发布或商业使用权。
+Source is available for portfolio review and technical evaluation. Unless the repository owner grants separate permission, no right is granted to copy, redistribute, or use the project commercially.

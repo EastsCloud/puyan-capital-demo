@@ -1,42 +1,40 @@
-# Isater v4 交付包检查记录
+# Isater v4 Package Validation Record
 
-检查日期：2026-08-07
+Validation date: 2026-08-07
 
-## 代码与构建
+## Code and build
 
-- Domain 规则测试：21/21 通过。
-- API、数据库与安全测试：22/22 通过。
-- Domain TypeScript 检查：通过。
-- API TypeScript 检查：通过。
-- Web TypeScript 检查：通过。
-- Web 生产构建：通过；1579 个模块成功构建。
+- Domain-rule tests: 21/21 passed.
+- API, database, and security tests: 22/22 passed at this checkpoint.
+- Domain, API, and Web TypeScript checks passed.
+- The Web production build passed with 1,579 modules.
 
-## 正式页面测试
+## Manual workflow tests
 
-- 熊市：完整端到端真实点击通过，包括监控、再平衡、非股票净值和报告。
-- 牛市：独立数据库真实点击至监控交接，通过且未触发优化。
-- 平衡市：独立数据库真实点击至监控交接；新兴市场优化后通过。
-- 四类账号均验证首次登录、改密和角色切换。
-- 交易计划由两名不同执行人员提交和复核。
+- Bear scenario: complete end-to-end real-click workflow, including monitoring, rebalancing, non-equity NAV, and reporting.
+- Bull scenario: independent clean-database run to the monitoring handoff; passed without optimization.
+- Balanced scenario: independent clean-database run to the monitoring handoff; passed after emerging-market optimization.
+- First login, password change, and role switching were verified for all four test-user categories.
+- The trade plan was submitted and reviewed by two different Execution Team users.
 
-## PDF 检查
+## PDF review
 
-- 文件：`docs/Isater_Three_Scenario_Full_Workflow_and_Business_Logic_v1.1_20260805.pdf`
-- 页数：28 页。
-- PDF 可读取、未加密、无空白页。
-- 已逐页渲染检查中文字体、流程图、表格、分页、截断和重叠。
-- 配置图中文情景标签已修复并复查。
+- File: `docs/Isater_Three_Scenario_Full_Workflow_and_Business_Logic_v1.1_20260805.pdf`
+- Length: 28 pages.
+- The PDF was readable, unencrypted, and contained no blank pages.
+- Every page was rendered to inspect fonts, diagrams, tables, pagination, clipping, and overlap.
+- This PDF is a Chinese-language business-review artifact; the public repository's Markdown documentation is maintained in English.
 
-## 数据与安全
+## Data and security
 
-- 数据库迁移：18 个。
-- 演示用户：4 个。
-- 登录会话：0。
-- 外部数据凭据：0。
-- 包内没有 `.env`，只保留 `.env.example`。
-- 包内没有 `node_modules`、运行数据库锁文件或 EODHD Token。
+- Database migrations at validation time: 18.
+- Login sessions in the packaged review database: 0.
+- External-data credentials in the packaged review database: 0.
+- No `.env`, dependency directory, runtime database lock, or EODHD token is tracked.
+- Public Git excludes databases, uploads, generated builds, and real business records.
 
-## 完整性
+## Integrity
 
-- `MANIFEST.sha256` 列出可发布文件的 SHA-256；本地演示数据库、依赖和构建产物不进入发布清单。
-- ZIP 在生成后执行完整性检查和解压目录核对。
+- `MANIFEST.sha256` records the intended package files and hashes.
+- Local databases, dependencies, and generated build artifacts are excluded from the public release manifest.
+- Packaged archives are checked after creation and extraction.

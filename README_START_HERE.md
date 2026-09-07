@@ -1,41 +1,34 @@
-# Isater / Puyan Capital 业务与技术评审包
+# Isater / Puyan Capital Review Package
 
-版本：2026-08-05 v4  
-用途：业务和 IT 评审，以及公开作品集展示；不是可直接投入真实交易的生产安装包。
+Version: 2026-08-05 v4
 
-项目总览请先阅读根目录 `README.md`。公开仓库不包含固定登录密码、外部数据凭证、数据库快照或真实业务数据。
+Purpose: business and technical review, plus public portfolio presentation. This is not a production trading-system installation package.
 
-## 建议阅读顺序
+Start with the root [README](README.md). The public repository contains no fixed login passwords, external-data credentials, database snapshots, or real business data.
 
-1. `docs/Isater_Three_Scenario_Full_Workflow_and_Business_Logic_v1.1_20260805.pdf`
-   - 28 页三情景全流程说明。
-   - 使用牛市、平衡市、熊市的真实点击测试数字解释业务逻辑。
-   - 包括公开数据、目标收益、Sleeve、CAPM、组合、回测、优化、审批、监控、报告和归因。
-2. `RELEASE_STATUS.md`
-   - 本版已经解决的问题、验证范围和仍需上线准备的事项。
-3. `docs/product-guide.md`
-   - 三类角色、年度流程、日常操作和页面说明。
-4. `docs/formal-e2e-test-report-2026-08-05-v1.1.md`
-   - 熊市场景完整端到端点击测试。
-5. `docs/formal-bull-balanced-e2e-test-report-2026-08-05-v1.1.md`
-   - 牛市和平衡市独立点击复测。
-6. `docs/quick-start.md` 和 `docs/review-accounts.md`
-   - 本机启动方式和四个演示账号。
-7. `system/`
-   - 当前 Isater 完整源代码、数据库迁移、生产构建和测试。
-8. `demo-database/`（仅本机交付包，不进入公开 Git 仓库）
-   - 已清除登录会话和外部数据凭据的本机演示数据库。
+## Suggested reading order
 
-## 安全说明
+1. `README.md` — project purpose, capabilities, technology, and setup.
+2. `RELEASE_STATUS.md` — verified scope, known limitations, and production-readiness boundary.
+3. `docs/product-guide.md` — roles, annual workflow, routine operation, and screens.
+4. `docs/business-flow-and-logic.md` — calculations and control logic.
+5. `docs/formal-e2e-test-report-2026-08-05-v1.1.md` — complete bear-market end-to-end test.
+6. `docs/formal-bull-balanced-e2e-test-report-2026-08-05-v1.1.md` — independent bull- and balanced-market retests.
+7. `docs/quick-start.md` and `docs/review-accounts.md` — local startup and test-account policy.
+8. `system/` — source code, migrations, build configuration, and tests.
 
-- 本包不包含 EODHD API Token、FRED Key、SMTP 密码或生产加密密钥。
-- 演示数据库登录会话数量为 0，外部数据凭据数量为 0。
-- 演示账号和密码只用于同事评审，生产部署必须重新建立用户并强制改密。
+The 28-page `docs/Isater_Three_Scenario_Full_Workflow_and_Business_Logic_v1.1_20260805.pdf` is an earlier Chinese-language business-review artifact. The Markdown documentation is the English reference for this public repository.
 
-## 当前结论
+## Security boundary
 
-- 牛市从公开数据到监控交接真实点击通过，不需要优化。
-- 平衡市在新兴市场首次失败后，优化器生成三套合规方案并完成审批及双人复核。
-- 熊市债券 carry 逻辑修复后完成全流程；新兴市场由分 Sleeve 优化器解决。
-- 旧 PDF 中的熊市拆解、最少换股能力、管理员参数一致性三项问题均已解决。
-- 首页待办偶尔未显示年度流程中的可操作事项，已记录为下一步界面一致性改进。
+- No EODHD token, FRED key, SMTP password, or production encryption key is included.
+- Local databases, sessions, uploaded files, and external credentials are excluded from Git.
+- Review accounts must be created for each environment and delivered through a private channel.
+- Production users must be newly created and forced to change their initial passwords.
+
+## Current assessment
+
+- The bull scenario passed from public data through the monitoring handoff without optimization.
+- The balanced scenario initially failed the emerging-market beta control; the optimizer produced three compliant alternatives and the selected plan completed approval and maker-checker review.
+- The bear scenario completed the full workflow after the bond-carry correction; sleeve-specific optimization resolved the emerging-market exception.
+- The remaining product boundary is documented in `RELEASE_STATUS.md` and must not be interpreted as production certification.

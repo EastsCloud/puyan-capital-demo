@@ -1,50 +1,48 @@
-# Isater 系统评审版发布状态
+# Isater Review Release Status
 
-版本：2026-08-05 v4  
-性质：独立 Isater 系统评审版，不包含 Teresa 原型，不包含视频。
+Version: 2026-08-05 v4
 
-## 本版更新
+Classification: independent review/demo build. It does not include the Teresa prototype or demo video.
 
-1. 熊市固定收益预期不再应用未经批准的久期价格调整；10 年期美债收益率作为 12 个月 carry 代理，3 月期国库券收益率作为现金代理。
-2. 优化器按失败 Sleeve 独立求解，先调整原 Ticker 权重；无解时按最少更换 1 只、2 只依次搜索。
-3. 管理员参数页面只保留年度引擎实际使用的校准期、样本阈值、情景阈值、网格、上下限和风险厌恶参数。
-4. 非股票净值日期与最新有效股票持仓日强制一致。
-5. 新增牛市、平衡市独立真实点击复测报告。
-6. 新增 28 页三情景全流程真实数据与业务逻辑 PDF，替换修复前说明。
+## Delivered changes
 
-## 正式验证结果
+1. Bear-market fixed-income expectations no longer apply an unapproved duration-price adjustment. The U.S. 10-year Treasury yield is used as a 12-month carry proxy and the 3-month Treasury rate as the cash proxy.
+2. The optimizer solves failed sleeves independently. It changes existing security weights first, then searches one- and two-security replacements only when necessary.
+3. The administrator parameter screen contains only calibration periods, sample thresholds, scenario thresholds, grids, bounds, and risk-aversion inputs used by the live annual engine.
+4. Non-equity NAV dates must match the latest effective equity-position date.
+5. Bull- and balanced-market real-click retest reports were added.
+6. A 28-page three-scenario workflow and calculation review was added as a Chinese-language PDF artifact.
 
-- 领域规则测试：21/21 通过。
-- API、数据库和安全测试：19/19 通过。
-- Domain、API、Web 类型检查：通过。
-- Web 生产构建：通过，1579 个模块成功构建。
-- 牛市：全新数据库、真实角色切换和页面点击，推进至监控交接；不需要优化。
-- 平衡市：新兴市场 Beta 首次失败；三套优化方案均通过；选择最小换手后完成委员会批准和执行双人复核。
-- 熊市：债券 carry 修复后完成公开数据、目标、Sleeve、组合、回测、优化、审批、实施、监控、再平衡、非股票净值和报告发布。
+## Verification evidence
 
-## 演示数据库
+- Domain-rule tests: 21/21 passed.
+- API, database, and security tests: 19/19 passed at the documented release checkpoint.
+- Domain, API, and Web type checks passed.
+- The Web production build completed successfully with 1,579 modules.
+- Bull scenario: clean database to monitoring handoff; no optimization required.
+- Balanced scenario: initial emerging-market beta failure; all three optimizer plans passed; the minimum-turnover plan completed committee approval and execution maker-checker review.
+- Bear scenario: public data, target, sleeves, portfolio, backtest, optimization, approval, implementation, monitoring, rebalancing, non-equity NAV, and report publication all completed.
 
-- 数据库迁移：17 个，全部生效。
-- 演示用户：4 个。
-- 登录会话：0。
-- 外部数据凭据：0。
-- 年度流程记录：1 个。
-- 报告版本：6 个。
-- 演示数据库仅用于本机评审，不得用于生产。
+## Demo-data boundary
 
-## 已知边界
+- Versioned database migrations are included; runtime databases are not tracked.
+- Fixed public credentials are not provided.
+- External provider credentials and login sessions are not included.
+- Any local review database is for testing only and must not be used in production.
 
-1. 首页待办偶尔显示“没有待处理事项”，但年度流程内存在当前角色可操作按钮；不影响业务结果，需要统一待办来源。
-2. 牛市和平衡市本轮复测停止在监控交接；持仓、月检、净值和报告由熊市完整测试覆盖。
-3. Sharpe 和 Sortino 至少需要 20 个有效持仓日；短样本时系统正确显示不可用。
-4. EODHD 服务端连接和加密存储已经准备，正式 Token 尚未放入交付包。
+## Known limitations
 
-## 生产上线前工作
+1. Dashboard tasks may occasionally be less complete than the actionable items shown inside the annual workflow. This does not change the saved business state but can reduce reminder reliability.
+2. Bull and balanced manual retests stopped at the monitoring handoff; the bear scenario provided the full downstream position, NAV, and report coverage.
+3. Sharpe and Sortino require at least 20 effective position dates; shorter samples intentionally show unavailable values.
+4. A real paid-data license and production coverage acceptance remain operational prerequisites.
 
-- 部署云 PostgreSQL、域名、HTTPS、备份恢复、日志和运行监控。
-- 配置正式邮件服务并验证发送及重试。
-- 由管理员在生产环境录入 EODHD Token，完成许可和数据覆盖验收。
-- 使用公司的真实富途导出样本完成持仓适配器验收。
-- 完成生产安全、灾备和端到端验收测试。
+## Required before real team use
 
-本包适合业务与技术评审，但不应直接作为生产上线包。
+- Production PostgreSQL operations, backups, restoration drills, monitoring, and incident procedures
+- Production email delivery with retry and failure handling
+- Data-provider licensing and market-coverage acceptance
+- Real broker-export samples and reconciliation sign-off
+- Independent security, disaster-recovery, financial-model, and end-to-end acceptance testing
+
+This repository demonstrates a complete controlled workflow, but it is not a claim of production readiness or financial-model approval.
