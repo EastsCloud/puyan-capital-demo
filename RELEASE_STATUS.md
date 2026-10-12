@@ -1,5 +1,19 @@
 # Isater Review Release Status
 
+## 2026-10-12: Proposed portfolio import and draft editing
+
+- The normal page displays saved database holdings, not automatically loaded recommendations.
+- CSV preview supports replace-all, merge, per-row keep/remove, explicit draft application, and cancellation without saving.
+- Drafts support add/remove/weight changes, display whole-list and per-sleeve counts, and validate before submission.
+- Unknown securities remain visible; administrators can register verified, organization-scoped entries with audit records.
+- Effective policy governs style counts and weights; the old fixed 30-name request cap is removed. Submission creates a new version and preserves historical plans.
+- Migration `0020_organization_securities.sql` was tested on a populated database. No reset is needed.
+- Verification: 57 automated tests, workspace type checks, production build, and local desktop/mobile browser acceptance passed. Browser acceptance used mocked API responses, not production or brokerage data.
+
+Usage and retest checklist: [Proposed Portfolio Import](docs/proposed-portfolio-import.md).
+
+## Earlier review checkpoint
+
 Version: 2026-08-05 v4
 
 Classification: independent review/demo build. It does not include the Teresa prototype or demo video.

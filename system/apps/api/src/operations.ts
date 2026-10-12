@@ -181,8 +181,9 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       pool.query(
         `SELECT ticker, exchange_code, name_en, name_zh, market
            FROM ticker_universe
-          WHERE enabled = true
+          WHERE enabled = true AND (organization_id IS NULL OR organization_id = $1)
           ORDER BY ticker, exchange_code`,
+        [user.organizationId],
       ),
     ]);
     const payload = actionResult.rows[0] ? jsonValue<{ orders?: Array<Record<string, unknown>> }>(actionResult.rows[0].payload) : {};

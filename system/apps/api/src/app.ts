@@ -22,6 +22,7 @@ import { registerReportingRoutes } from "./reporting.js";
 import { registerAuditRoutes } from "./audit.js";
 import { registerExternalDataRoutes } from "./eodhd.js";
 import { registerOperationalRoutes } from "./operations.js";
+import { registerSecurityRoutes } from "./securities.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -67,6 +68,7 @@ export async function buildApp() {
   await registerAuditRoutes(app);
   await registerExternalDataRoutes(app);
   await registerOperationalRoutes(app);
+  await registerSecurityRoutes(app);
   await registerWorkflowRoutes(app);
 
   if (config.SERVE_WEB) {

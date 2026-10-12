@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { ProposedPortfolioEditor } from "./ProposedPortfolioEditor";
+import { SecuritiesPage } from "./SecuritiesPage";
+import type { Holding } from "./proposed-portfolio-model";
 import {
   Bell, CheckCircle2, ChevronRight, ClipboardCheck, CloudDownload, Database, FileBarChart,
   CalendarCheck, FileUp, Gauge, KeyRound, LoaderCircle, LogOut, Menu, ReceiptText, Send, Settings, ShieldCheck, Users, X,
@@ -6,7 +9,7 @@ import {
 
 type Locale = "zh-CN" | "en";
 type Role = "system_admin" | "decision_committee" | "execution_team";
-type Page = "overview" | "annual" | "portfolio" | "monitoring" | "reports" | "users" | "parameters" | "sources" | "connections" | "audit";
+type Page = "overview" | "annual" | "portfolio" | "monitoring" | "reports" | "users" | "parameters" | "sources" | "connections" | "audit" | "securities";
 
 interface User {
   id: string;
@@ -1169,7 +1172,7 @@ function ReportPanel({ locale, user, workflow, onWorkflowChanged, readOnly = fal
 const annualSteps = ["annual_data", "target_return", "sleeve_targets", "proposed_portfolio", "backtest", "optimization", "portfolio_approval", "implementation", "monitoring", "non_equity_nav", "reporting"] as const;
 type AnnualStep = typeof annualSteps[number];
 
-function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
+function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: User; onDirtyChange: (dirty: boolean) => void }) {
   const zh = locale === "zh-CN";
   const labels: Record<string, [string, string]> = {
     annual_data: ["年度公开数据", "Annual public data"], target_return: ["目标收益率", "Target return"], sleeve_targets: ["Sleeve 目标", "Sleeve targets"],
@@ -1186,8 +1189,8 @@ function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
   const [targetReturnPct, setTargetReturnPct] = useState(0);
   const [sleeveContext, setSleeveContext] = useState<SleeveTargetContext | null>(null);
   const [proposedContext, setProposedContext] = useState<ProposedPortfolioContext | null>(null);
-  const [proposedHoldings, setProposedHoldings] = useState<Array<{ tickerUniverseId: string; weight: number }>>([]);
-  const [activeSleeve, setActiveSleeve] = useState<"us" | "developedNonUs" | "emerging">("us");
+  const [proposalDirty, setProposalDirty] = useState(false);
+  const reportProposalDirty = useCallback((dirty: boolean) => { setProposalDirty(dirty); onDirtyChange(dirty); }, [onDirtyChange]);
   const [backtestContext, setBacktestContext] = useState<BacktestContext | null>(null);
   const [optimizationRun, setOptimizationRun] = useState<OptimizationRun | null>(null);
   const [portfolioApprovalContext, setPortfolioApprovalContext] = useState<PortfolioApprovalContext | null>(null);
@@ -1196,6 +1199,10 @@ function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const displayStep = viewedStep ?? (workflow?.current_step as AnnualStep | undefined) ?? null;
+  const viewStep = (step: AnnualStep | null) => {
+    if (proposalDirty && step !== displayStep && !window.confirm(zh ? "拟持仓尚未保存，离开会放弃草稿。确定离开？" : "Unsaved proposed holdings will be discarded. Leave this step?")) return;
+    setViewedStep(step);
+  };
   const load = () => api<{ workflow: AnnualWorkflow | null }>("/api/workflows/annual/active").then((result) => setWorkflow(result.workflow));
   useEffect(() => { void load(); }, []);
   useEffect(() => {
@@ -1214,11 +1221,7 @@ function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
         : Promise.resolve(),
       displayStep === "proposed_portfolio"
         ? api<ProposedPortfolioContext>(`/api/workflows/${workflow.id}/proposed-portfolio/context`).then((result) => {
-          const savedHoldings = result.proposedPortfolioVersion?.holdings?.flatMap((holding) => {
-            const ticker = result.universe.find((item) => item.ticker === holding.ticker && item.exchange_code === holding.exchange_code);
-            return ticker ? [{ tickerUniverseId: ticker.id, weight: Number(holding.weight) }] : [];
-          }) ?? [];
-          setProposedContext(result); setProposedHoldings(savedHoldings.length ? savedHoldings : result.recommendedHoldings);
+          setProposedContext(result);
         })
         : Promise.resolve(),
       displayStep === "backtest"
@@ -1300,41 +1303,27 @@ function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
     } catch (reason) { setMessage((reason as Error).message); }
     finally { setBusy(false); }
   }
-  async function submitProposedPortfolio() {
+  async function submitProposedPortfolio(proposedHoldings: Holding[]) {
     if (!workflow) return;
     setBusy(true); setMessage(null);
+    let savedVersion = false;
     try {
       const saved = await api<{ proposedPortfolioVersion: { id: string } }>(`/api/workflows/${workflow.id}/proposed-portfolio/versions`, {
         method: "POST", body: JSON.stringify({ holdings: proposedHoldings }),
       });
+      savedVersion = true;
       await api(`/api/workflows/${workflow.id}/actions`, {
         method: "POST", body: JSON.stringify({ action: "submit_proposed_portfolio", payload: { proposedPortfolioVersionId: saved.proposedPortfolioVersion.id } }),
       });
       await load();
       setMessage(zh ? "拟投资组合已提交，进入真实历史回测。" : "The proposed portfolio is submitted for historical backtesting.");
-    } catch (reason) { setMessage((reason as Error).message); }
+    } catch (reason) {
+      if (savedVersion) {
+        try { await load(); } catch { /* Keep the original submission error visible. */ }
+        setMessage(zh ? `拟持仓新版本已保存，但流程推进或刷新失败，请刷新核对后再操作：${(reason as Error).message}` : `The new portfolio version was saved, but advancing or refreshing the workflow failed. Refresh and review before retrying: ${(reason as Error).message}`);
+      } else setMessage((reason as Error).message);
+    }
     finally { setBusy(false); }
-  }
-  async function importProposedPortfolioCsv(file: File | null) {
-    if (!file || !proposedContext) return;
-    setMessage(null);
-    try {
-      const rows = (await file.text()).trim().split(/\r?\n/).filter(Boolean).map((line) => line.split(",").map((cell) => cell.trim().replace(/^"|"$/g, "")));
-      if (rows.length < 2) throw new Error("CSV is empty");
-      const headers = rows[0].map((item) => item.toLowerCase().replace(/[^a-z0-9]/g, ""));
-      const tickerIndex = headers.findIndex((item) => ["ticker", "symbol"].includes(item));
-      const weightIndex = headers.findIndex((item) => ["weightpercent", "weightpct", "weight"].includes(item));
-      if (tickerIndex < 0 || weightIndex < 0) throw new Error("Required columns: Ticker, WeightPercent");
-      const imported = rows.slice(1).map((row) => {
-        const ticker = row[tickerIndex]?.toUpperCase(); const match = proposedContext.universe.find((item) => item.ticker.toUpperCase() === ticker);
-        const rawWeight = Number(row[weightIndex]);
-        if (!match) throw new Error(`Ticker is not in the approved universe: ${ticker}`);
-        if (!(rawWeight > 0)) throw new Error(`Invalid weight for ${ticker}`);
-        return { tickerUniverseId: match.id, weight: rawWeight > 1 ? rawWeight / 100 : rawWeight };
-      });
-      setProposedHoldings(imported); setActiveSleeve(proposedContext.universe.find((item) => item.id === imported[0]?.tickerUniverseId)?.sleeve ?? "us");
-      setMessage(zh ? `已从 CSV 载入 ${imported.length} 支股票；提交时仍会执行全部 Iaster 规则校验。` : `Loaded ${imported.length} names from CSV; all Isater controls still run on submission.`);
-    } catch (reason) { setMessage((reason as Error).message); }
   }
   async function runBacktest() {
     if (!workflow) return;
@@ -1437,7 +1426,7 @@ function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
     {workflow && <><ol className="workflow-track" aria-label={zh ? "年度流程步骤" : "Annual workflow steps"}>{annualSteps.map((step, index) => {
       const locked = index > currentIndex;
       const state = index === currentIndex ? "current" : index < currentIndex ? "done" : "locked";
-      return <li className={`${state} ${index === displayedIndex ? "selected" : ""}`} key={step}><button type="button" disabled={locked} onClick={() => setViewedStep(step)} aria-current={index === displayedIndex ? "step" : undefined}><span>{String(index + 1).padStart(2, "0")}</span><strong>{labels[step][zh ? 0 : 1]}</strong><small>{state === "current" ? (zh ? "当前" : "Current") : state === "done" ? (zh ? "已完成" : "Completed") : (zh ? "未开始" : "Locked")}</small></button></li>;
+      return <li className={`${state} ${index === displayedIndex ? "selected" : ""}`} key={step}><button type="button" disabled={locked || busy} onClick={() => viewStep(step)} aria-current={index === displayedIndex ? "step" : undefined}><span>{String(index + 1).padStart(2, "0")}</span><strong>{labels[step][zh ? 0 : 1]}</strong><small>{state === "current" ? (zh ? "当前" : "Current") : state === "done" ? (zh ? "已完成" : "Completed") : (zh ? "未开始" : "Locked")}</small></button></li>;
     })}</ol>
       <section className={`current-step ${viewIsCurrent ? "" : "history-step"}`}><div><span>{viewIsCurrent ? (zh ? "当前步骤" : "Current step") : (zh ? "历史步骤 · 只读" : "Completed step · read only")}</span><h3>{displayStep ? labels[displayStep][zh ? 0 : 1] : ""}</h3><p>{!viewIsCurrent ? (zh ? "这里显示该步骤已经保存的数据和结果，不提供修改或审批按钮。" : "This view shows saved data and results without action or approval controls.") : displayStep === "annual_data" ? (zh ? "决策委员会运行年度公开数据引擎并审核系统建议。" : "The committee runs the annual public-data engine and reviews the system recommendation.") : displayStep === "target_return" ? (zh ? "决策委员会在管理员维护的范围内确定年度收益率下限。" : "The committee sets the annual return floor inside the administrator-maintained range.") : (zh ? "系统将根据当前角色显示应办事项。" : "The system shows the action due for the current role.")}</p></div>{!viewIsCurrent && <button className="current-step-return" type="button" onClick={() => setViewedStep(null)}>{zh ? "返回当前步骤" : "Return to current step"}<ChevronRight size={16} /></button>}</section>
       {displayStep === "annual_data" && <section className="annual-data-panel">
@@ -1467,18 +1456,10 @@ function AnnualPage({ locale, user }: { locale: Locale; user: User }) {
         <details className="source-details"><summary>{zh ? "查看约束说明" : "View control basis"}</summary><p>{zh ? "每个 Sleeve 使用本市场无风险利率计算目标 Beta；若公开数据基准收益已经超过组合目标，不会把收益率硬拉回目标。最大回撤限制结合历史回撤与管理员维护的收益/回撤比率。" : "Each sleeve uses its local risk-free rate for target beta. A public-data baseline above the portfolio floor is not forced down. Drawdown limits combine observed history with the administrator-maintained return/drawdown ratio."}</p></details>
         {viewIsCurrent && user.role === "execution_team" ? <div className="approval-actions"><button className="primary-button compact" onClick={confirmSleeveTargets} disabled={busy}>{zh ? "确认 Sleeve 目标并继续" : "Confirm sleeve targets"}</button></div> : <p className="readonly-note">{zh ? "只读：该步骤由执行小组确认。" : "Read only: the execution team owns this step."}</p>}
       </section>}
-      {displayStep === "proposed_portfolio" && proposedContext && <section className="annual-data-panel proposed-portfolio-panel">
-        <header><div><span className="section-label">{zh ? "拟投资组合" : "Proposed portfolio"}</span><h3>{zh ? "在系统 Ticker 库中选择并配置" : "Select and allocate from the system ticker universe"}</h3></div><div className="policy-badge">{zh ? `单股上限 ${proposedContext.policy.maxSingleSecurityWeightPct}%` : `Single-name max ${proposedContext.policy.maxSingleSecurityWeightPct}%`}</div></header>
-        {viewIsCurrent && user.role === "execution_team" && <div className="proposal-import"><div><FileUp size={20} /><span><strong>{zh ? "批量导入拟持仓" : "Bulk import proposed holdings"}</strong><small>{zh ? "CSV 列：Ticker, WeightPercent；导入不会绕过 Ticker 库、风格数量和权重校验。" : "CSV columns: Ticker, WeightPercent. Universe, style-count and weight controls remain mandatory."}</small></span></div><label className="file-picker"><input type="file" accept=".csv,text/csv" onChange={(event) => void importProposedPortfolioCsv(event.target.files?.[0] ?? null)} /><span>{zh ? "选择组合 CSV" : "Choose portfolio CSV"}</span></label><a className="secondary-button compact" href="/templates/proposed-portfolio-template.csv" download>{zh ? "下载模板" : "Download template"}</a></div>}
-        <div className="segmented sleeve-tabs">{(["us", "developedNonUs", "emerging"] as const).map((key) => <button key={key} className={activeSleeve === key ? "active" : ""} onClick={() => setActiveSleeve(key)}>{sleeveLabels[key]}</button>)}</div>
-        <div className="table-wrap"><table><thead><tr><th>Ticker</th><th>{zh ? "名称" : "Name"}</th><th>{zh ? "市场" : "Market"}</th><th>{zh ? "风格" : "Style"}</th><th>{zh ? "Sleeve 内权重" : "Within-sleeve weight"}</th></tr></thead><tbody>{proposedHoldings.map((holding, index) => {
-          const ticker = proposedContext.universe.find((item) => item.id === holding.tickerUniverseId);
-          if (!ticker || ticker.sleeve !== activeSleeve) return null;
-          const choices = proposedContext.universe.filter((item) => item.sleeve === activeSleeve && item.style === ticker.style);
-          return <tr key={`${activeSleeve}-${index}`}><td><select disabled={!viewIsCurrent} value={holding.tickerUniverseId} onChange={(event) => setProposedHoldings(proposedHoldings.map((item, itemIndex) => itemIndex === index ? { ...item, tickerUniverseId: event.target.value } : item))}>{choices.map((choice) => <option key={choice.id} value={choice.id}>{choice.ticker}</option>)}</select></td><td><a href={ticker.source_url} target="_blank" rel="noreferrer">{zh ? ticker.name_zh : ticker.name_en}</a></td><td>{ticker.market}</td><td>{ticker.style === "growth" ? (zh ? "成长" : "Growth") : (zh ? "价值" : "Value")}</td><td><div className="weight-input"><input disabled={!viewIsCurrent} aria-label={`${ticker.ticker} weight`} type="number" min="0.1" max={proposedContext.policy.maxSingleSecurityWeightPct} step="0.1" value={Number((holding.weight * 100).toFixed(1))} onChange={(event) => setProposedHoldings(proposedHoldings.map((item, itemIndex) => itemIndex === index ? { ...item, weight: Number(event.target.value) / 100 } : item))} /><span>%</span></div></td></tr>;
-        })}</tbody><tfoot><tr><td colSpan={4}>{zh ? "当前 Sleeve 合计" : "Current sleeve total"}</td><td><strong>{(proposedHoldings.reduce((sum, holding) => { const ticker = proposedContext.universe.find((item) => item.id === holding.tickerUniverseId); return sum + (ticker?.sleeve === activeSleeve ? holding.weight : 0); }, 0) * 100).toFixed(1)}%</strong></td></tr></tfoot></table></div>
-        <div className="proposal-controls"><span>{zh ? `每个风格 ${proposedContext.policy.styleTickerMin}–${proposedContext.policy.styleTickerMax} 支；当前系统建议每组 4 支。` : `${proposedContext.policy.styleTickerMin}-${proposedContext.policy.styleTickerMax} names per style; current proposal uses four per sleeve.`}</span>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={submitProposedPortfolio} disabled={busy}>{zh ? "提交拟投资组合并回测" : "Submit portfolio for backtest"}</button>}</div>
-      </section>}
+      {displayStep === "proposed_portfolio" && proposedContext && <ProposedPortfolioEditor context={proposedContext} zh={zh} canEdit={viewIsCurrent && user.role === "execution_team"} busy={busy} onSubmit={submitProposedPortfolio} onDirtyChange={reportProposalDirty} onRefresh={async () => {
+        const result = await api<ProposedPortfolioContext>(`/api/workflows/${workflow!.id}/proposed-portfolio/context`);
+        setProposedContext(result);
+      }} />}
       {displayStep === "backtest" && backtestContext && <section className="annual-data-panel backtest-panel">
         <header><div><span className="section-label">{zh ? "真实历史回测" : "Historical backtest"}</span><h3>{zh ? `${backtestContext.policy.months} 个月 · 周度 · 分 Sleeve 检查` : `${backtestContext.policy.months} months · weekly · sleeve-level controls`}</h3></div>{backtestContext.backtestRun && <strong className={backtestContext.backtestRun.hard_control_pass ? "result-pass" : "result-fail"}>{backtestContext.backtestRun.hard_control_pass ? (zh ? "通过" : "PASS") : (zh ? "需要优化" : "OPTIMIZATION REQUIRED")}</strong>}</header>
         {!backtestContext.backtestRun ? <div className="backtest-ready"><div><strong>{zh ? "检查 Beta、收益率下限与最大回撤" : "Check beta, return floor and maximum drawdown"}</strong><span>{zh ? "收益率只设下限；高于目标不会判定失败。每个 Sleeve 使用对应市场基准。" : "Return is a floor. Each sleeve uses its own market benchmark."}</span></div>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={runBacktest} disabled={busy}>{busy ? (zh ? "正在回测" : "Running") : (zh ? "运行真实历史回测" : "Run historical backtest")}</button>}</div> : <>
@@ -1571,6 +1552,9 @@ function ApprovedPortfolioPage({ locale }: { locale: Locale }) {
 
 function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: Locale; onLocale: (locale: Locale) => void; onLogout: () => void }) {
   const text = copy[locale]; const zh = locale === "zh-CN"; const [open, setOpen] = useState(false); const [page, setPage] = useState<Page>("overview");
+  const [proposalDirty, setProposalDirty] = useState(false);
+  const leaveDraft = () => !proposalDirty || window.confirm(zh ? "拟持仓尚未保存，离开会放弃草稿。确定离开？" : "Unsaved proposed holdings will be discarded. Leave this page?");
+  const logout = () => { if (leaveDraft()) onLogout(); };
   const [notificationOpen, setNotificationOpen] = useState(false); const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const loadNotifications = async () => { const result = await api<{ notifications: UserNotification[] }>("/api/notifications"); setNotifications(result.notifications); return result.notifications; };
   useEffect(() => { void loadNotifications(); }, []);
@@ -1582,7 +1566,7 @@ function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: L
     await Promise.all(unread.map((item) => api(`/api/notifications/${item.id}/read`, { method: "POST", body: "{}" })));
     if (unread.length) await loadNotifications();
   }
-  const adminLinks: { id: Page; label: string; icon: typeof Users }[] = user.role === "system_admin" ? [{ id: "users", label: text.users, icon: Users }, { id: "parameters", label: text.parameters, icon: Settings }, { id: "sources", label: text.sources, icon: CloudDownload }, { id: "connections", label: text.connections, icon: KeyRound }, { id: "audit", label: text.audit, icon: ShieldCheck }] : [];
+  const adminLinks: { id: Page; label: string; icon: typeof Users }[] = user.role === "system_admin" ? [{ id: "users", label: text.users, icon: Users }, { id: "securities", label: zh ? "股票库" : "Securities", icon: Database }, { id: "parameters", label: text.parameters, icon: Settings }, { id: "sources", label: text.sources, icon: CloudDownload }, { id: "connections", label: text.connections, icon: KeyRound }, { id: "audit", label: text.audit, icon: ShieldCheck }] : [];
   const links = [{ id: "overview" as Page, label: text.overview, icon: Gauge }, { id: "annual" as Page, label: text.annual, icon: ClipboardCheck }, { id: "portfolio" as Page, label: text.portfolio, icon: Database }, { id: "monitoring" as Page, label: text.monitoring, icon: CheckCircle2 }, { id: "reports" as Page, label: text.reports, icon: FileBarChart }, ...adminLinks];
   const pageTitle = links.find((item) => item.id === page)?.label ?? text.welcome;
   return (
@@ -1594,12 +1578,12 @@ function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: L
         </div>
         <nav>
           {links.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={page === id ? "nav-link active" : "nav-link"} onClick={() => { setPage(id); setOpen(false); }}>
+            <button key={id} className={page === id ? "nav-link active" : "nav-link"} onClick={() => { if (id !== page && !leaveDraft()) return; setPage(id); setOpen(false); }}>
               <Icon size={19} /><span>{label}</span>
             </button>
           ))}
         </nav>
-        <button className="nav-link logout" onClick={onLogout}><LogOut size={19} />{text.logout}</button>
+        <button className="nav-link logout" onClick={logout}><LogOut size={19} />{text.logout}</button>
       </aside>
       {open && <button className="scrim" aria-label="Close menu" onClick={() => setOpen(false)} />}
       <main className="workspace">
@@ -1609,12 +1593,12 @@ function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: L
           <div className="header-actions">
             <LanguageSwitch locale={locale} onChange={onLocale} />
             <div className="notification-wrap"><button className="icon-button" aria-label={zh ? "通知" : "Notifications"} onClick={openNotifications}><Bell />{notifications.some((item) => !item.read_at) && <i className="notification-dot" />}</button>{notificationOpen && <div className="notification-panel"><header><strong>{zh ? "通知" : "Notifications"}</strong><button className="icon-button" onClick={() => setNotificationOpen(false)} aria-label={zh ? "关闭通知" : "Close notifications"}><X size={17} /></button></header>{notifications.length === 0 ? <p>{zh ? "暂无通知" : "No notifications"}</p> : notifications.slice(0, 8).map((item) => <article key={item.id}><strong>{item.title_key === "rebalance.completed.title" ? (zh ? "再平衡已完成" : "Rebalancing completed") : (zh ? "再平衡逾期" : "Rebalancing overdue")}</strong><span>{item.body_key === "rebalance.completed.body" ? (zh ? "最新持仓已经回到 corridor 范围内。" : "The latest positions are within corridor.") : (zh ? `最新持仓仍有 ${item.context.breachedGroups?.length ?? 0} 个风格组越界。` : `${item.context.breachedGroups?.length ?? 0} style groups remain outside corridor.`)}</span><small>{item.context.verificationDate ?? item.created_at.slice(0, 10)}</small></article>)}</div>}</div>
-            <button className="icon-button mobile-logout" onClick={onLogout} aria-label={text.logout} title={text.logout}><LogOut size={19} /></button>
+            <button className="icon-button mobile-logout" onClick={logout} aria-label={text.logout} title={text.logout}><LogOut size={19} /></button>
             <div className="user-chip"><strong>{user.displayName}</strong><span>{text.roles[user.role]}</span></div>
           </div>
         </header>
         <div className="workspace-content">
-          {page === "overview" ? <Overview locale={locale} user={user} /> : page === "annual" ? <AnnualPage locale={locale} user={user} /> : page === "portfolio" ? <ApprovedPortfolioPage locale={locale} /> : page === "monitoring" ? <WorkflowModulePage locale={locale} user={user} module="monitoring" /> : page === "reports" ? <WorkflowModulePage locale={locale} user={user} module="reports" /> : page === "users" ? <UsersPage locale={locale} /> : page === "parameters" ? <ParametersPage locale={locale} /> : page === "sources" ? <><SourcesPage locale={locale} /><SourceFileRegistry locale={locale} /></> : page === "connections" ? <ExternalDataConnectionsPage locale={locale} /> : page === "audit" ? <AuditPage locale={locale} /> : <section className="placeholder"><h2>{pageTitle}</h2><p>{text.placeholderPage}</p></section>}
+          {page === "overview" ? <Overview locale={locale} user={user} /> : page === "annual" ? <AnnualPage locale={locale} user={user} onDirtyChange={setProposalDirty} /> : page === "portfolio" ? <ApprovedPortfolioPage locale={locale} /> : page === "monitoring" ? <WorkflowModulePage locale={locale} user={user} module="monitoring" /> : page === "reports" ? <WorkflowModulePage locale={locale} user={user} module="reports" /> : page === "users" ? <UsersPage locale={locale} /> : page === "securities" ? <SecuritiesPage zh={zh} request={api} /> : page === "parameters" ? <ParametersPage locale={locale} /> : page === "sources" ? <><SourcesPage locale={locale} /><SourceFileRegistry locale={locale} /></> : page === "connections" ? <ExternalDataConnectionsPage locale={locale} /> : page === "audit" ? <AuditPage locale={locale} /> : <section className="placeholder"><h2>{pageTitle}</h2><p>{text.placeholderPage}</p></section>}
         </div>
       </main>
     </div>

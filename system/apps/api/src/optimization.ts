@@ -192,8 +192,8 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const benchmarkBySleeve: Record<SleeveKey, string[]> = { us: ["^GSPC"], developedNonUs: ["^N225"], emerging: ["000001.SS", "^HSI"] };
     const priorBenchmarkManifest = jsonValue<{ sleeves: Record<SleeveKey, Array<{ symbol: string; weight: number }>> }>(prior.rows[0].benchmark_manifest);
     const universeResult = await pool.query(
-      "SELECT * FROM ticker_universe WHERE enabled = true AND sleeve = ANY($1::text[]) ORDER BY sleeve, style, ticker",
-      [failedSleeves],
+      "SELECT * FROM ticker_universe WHERE enabled = true AND sleeve = ANY($1::text[]) AND (organization_id IS NULL OR organization_id = $2) ORDER BY sleeve, style, ticker",
+      [failedSleeves, user.organizationId],
     );
     const normalizeHolding = (item: any, defaultWeight = 0): OptimizerHolding => ({
       ticker: String(item.ticker),

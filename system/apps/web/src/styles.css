@@ -944,6 +944,29 @@ th {
 .proposal-import > div { margin-right: auto; justify-content: flex-start; }
 .proposal-import > div span { display: grid; gap: 3px; }
 .proposal-import small { color: var(--rh-muted); }
+.proposal-toolbar, .proposal-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
+.proposal-counts { padding: 14px; border: 1px solid var(--rh-line); background: var(--rh-soft); }
+.proposal-preview { border: 2px solid var(--rh-accent-strong); padding: 18px; margin: 22px 0; background: var(--rh-surface); }
+.proposal-preview header h4 { margin: 0 0 8px; overflow-wrap: anywhere; }
+.proposal-preview header p, .proposed-portfolio-panel > header p { font-size: 13px; color: var(--rh-muted); }
+.proposal-mode, .proposal-add { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 18px 0; }
+.proposal-preview-table { min-width: 850px; }
+.proposal-preview-table tr.excluded { opacity: .55; }
+.proposed-portfolio-panel select, .proposed-portfolio-panel input, .security-form input, .security-form select { max-width: 100%; min-height: 38px; padding: 6px 9px; border: 1px solid var(--rh-line); border-radius: 4px; background: #fff; color: var(--rh-ink); }
+.proposed-portfolio-panel td > input { width: 120px; }
+.proposal-preview-table td:nth-child(2) { min-width: 250px; }
+.proposal-preview-table td:nth-child(2) select { display: block; width: 280px; }
+.proposed-portfolio-panel td small { display: block; margin-top: 5px; }
+.proposal-errors { margin: 16px 0; padding: 14px 14px 14px 32px; background: #fff5f2; border-left: 4px solid #b43b2b; color: #8b3025; line-height: 1.7; }
+.security-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 22px 0; }
+.security-form label { display: grid; gap: 7px; font-size: 13px; }
+.security-form button { align-self: end; }
+@media (max-width: 700px) {
+  .security-form { grid-template-columns: 1fr; }
+  .proposal-toolbar { align-items: stretch; flex-direction: column; }
+  .proposal-preview { padding: 12px; }
+  .proposal-counts { align-items: flex-start; flex-direction: column; }
+}
 .demo-reset-panel { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: end; margin-top: 24px; padding: 20px; border: 1px solid #e2b8af; border-left: 4px solid #b43b2b; background: #fff8f6; }
 .demo-reset-panel h3 { margin: 5px 0; }
 .demo-reset-panel p { margin: 0; color: var(--rh-muted); }

@@ -6,7 +6,8 @@ import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
 
 const saveSchema = z.object({
-  holdings: z.array(z.object({ tickerUniverseId: z.string().uuid(), weight: z.number().positive().max(1) })).min(12).max(30),
+  // Business limits below follow the effective style policy instead of a fixed 30-name cap.
+  holdings: z.array(z.object({ tickerUniverseId: z.string().uuid(), weight: z.number().positive().max(1) })).min(1).max(600),
 });
 
 function forbidden(message = "Forbidden") {
@@ -65,7 +66,7 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
       [workflowId, user.organizationId],
     );
     if (!workflow.rows[0]) throw invalidState("Active workflow not found");
-    const universe = await pool.query("SELECT * FROM ticker_universe WHERE enabled = true ORDER BY sleeve, style, ticker");
+    const universe = await pool.query("SELECT * FROM ticker_universe WHERE enabled = true AND (organization_id IS NULL OR organization_id = $1) ORDER BY sleeve, style, ticker", [user.organizationId]);
     const policy = await constructionPolicy(user.organizationId);
     const defaults: Array<{ tickerUniverseId: string; weight: number }> = [];
     for (const sleeve of ["us", "developedNonUs", "emerging"]) {
@@ -98,8 +99,8 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     if (!workflow.rows[0] || workflow.rows[0].current_step !== "proposed_portfolio") throw invalidState("Proposed portfolio is not the current workflow step");
     if (new Set(input.holdings.map((item) => item.tickerUniverseId)).size !== input.holdings.length) throw invalidState("A ticker can appear only once");
     const universe = await pool.query(
-      "SELECT * FROM ticker_universe WHERE enabled = true AND id = ANY($1::uuid[])",
-      [input.holdings.map((item) => item.tickerUniverseId)],
+      "SELECT * FROM ticker_universe WHERE enabled = true AND id = ANY($1::uuid[]) AND (organization_id IS NULL OR organization_id = $2)",
+      [input.holdings.map((item) => item.tickerUniverseId), user.organizationId],
     );
     if (universe.rows.length !== input.holdings.length) throw invalidState("One or more tickers are not in the approved universe");
     const policy = await constructionPolicy(user.organizationId);
@@ -121,6 +122,19 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
         }
       }
     }
+    // The database stores eight decimal places. Reconcile rounding within each
+    // sleeve so a valid 12-name equal allocation still totals exactly 100% when reloaded.
+    for (const sleeve of ["us", "developedNonUs", "emerging"]) {
+      const items = resolved.filter((item) => item.sleeve === sleeve);
+      const units = items.map((item) => Math.round(item.weight * 100_000_000));
+      const difference = 100_000_000 - units.reduce((sum, value) => sum + value, 0);
+      if (difference) {
+        const index = items.findIndex((_item, index) => units[index] + difference > 0 && units[index] + difference <= Math.floor(policy.maxSingleSecurityWeightPct * 1_000_000));
+        if (index < 0) throw invalidState("Weights cannot be represented within the configured single-security limit");
+        units[index] += difference;
+      }
+      items.forEach((item, index) => { item.weight = units[index] / 100_000_000; });
+    }
     const sleeveTarget = await pool.query(
       "SELECT id FROM sleeve_target_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1",
       [workflowId],
@@ -129,6 +143,13 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      const lockedWorkflow = await client.query(
+        "SELECT current_step, status FROM workflow_cases WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [workflowId, user.organizationId],
+      );
+      if (lockedWorkflow.rows[0]?.status !== "active" || lockedWorkflow.rows[0]?.current_step !== "proposed_portfolio") {
+        throw invalidState("Proposed portfolio is not the current workflow step");
+      }
       const next = await client.query(
         "SELECT COALESCE(max(version), 0)::int + 1 AS version FROM proposed_portfolio_versions WHERE workflow_case_id = $1",
         [workflowId],

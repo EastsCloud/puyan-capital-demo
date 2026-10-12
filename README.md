@@ -15,6 +15,7 @@ Live demo: [demo.puyancapital.com](https://demo.puyancapital.com)
 - Committee voting, execution-team maker-checker review, and immutable audit events
 - CSV imports for proposed holdings, executed fills, current positions, and external cash flows
 - Import preview, row selection, security lookup, exchange normalization, and plan-versus-fill reconciliation
+- Saved-versus-draft proposed portfolios, replace/merge imports, explicit confirmation, and organization-scoped security registration
 - Effective-dated parameters, versioned reports, performance attribution, delivery records, and import registry
 - Responsive Chinese/English interface for desktop and mobile browsers
 
@@ -36,6 +37,8 @@ docs/                Product, architecture, workflow, and verification documents
 ```
 
 See [Architecture](docs/architecture.md) and [Business Flow and Calculation Logic](docs/business-flow-and-logic.md) for more detail.
+
+See [Proposed Portfolio Import](docs/proposed-portfolio-import.md) for the saved-data, preview, draft, submission, and missing-security workflow.
 
 ## Local setup
 
