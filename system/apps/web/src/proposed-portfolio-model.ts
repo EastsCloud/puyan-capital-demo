@@ -2,6 +2,7 @@ export type Sleeve = "us" | "developedNonUs" | "emerging";
 export interface Security {
   id: string; ticker: string; exchange_code: string; name_en: string; name_zh: string;
   market: "US" | "JP" | "HK" | "CN_A"; sleeve: Sleeve; style: "growth" | "value"; source_url: string;
+  data_coverage?: { observations: number; provider: string; status: string; checkedAt: string } | null;
 }
 export interface Holding { tickerUniverseId: string; weight: number }
 export interface ConstructionPolicy { maxSingleSecurityWeightPct: number; styleTickerMin: number; styleTickerMax: number }
@@ -46,10 +47,10 @@ export function findSecurity(ticker: string, exchange: string, universe: Securit
 export function parsePortfolioCsv(content: string, universe: Security[], zh: boolean): ImportRow[] {
   const rows = readCsv(content);
   if (rows.length < 2) throw new Error(zh ? "CSV 没有股票记录。" : "CSV has no security rows.");
-  const headers = rows[0].map((value) => value.toLowerCase().replace(/[^a-z0-9]/g, ""));
-  const tickerIndex = headers.findIndex((value) => ["ticker", "symbol"].includes(value));
-  const weightIndex = headers.findIndex((value) => ["weightpercent", "weightpct", "weight"].includes(value));
-  const exchangeIndex = headers.findIndex((value) => ["exchange", "exchangecode"].includes(value));
+  const headers = rows[0].map((value) => value.toLowerCase().replace(/[\s_-]/g, ""));
+  const tickerIndex = headers.findIndex((value) => ["ticker", "symbol", "股票代码"].includes(value));
+  const weightIndex = headers.findIndex((value) => ["weightpercent", "weightpct", "weight", "权重"].includes(value));
+  const exchangeIndex = headers.findIndex((value) => ["exchange", "exchangecode", "股票市场", "交易所"].includes(value));
   if (tickerIndex < 0 || weightIndex < 0) throw new Error(zh ? "CSV 必须包含 Ticker、WeightPercent 列；可选 Exchange 列。" : "Required columns: Ticker, WeightPercent. Exchange is optional.");
   return rows.slice(1).map((row, index) => {
     const ticker = row[tickerIndex] ?? ""; const exchange = exchangeIndex < 0 ? "" : row[exchangeIndex] ?? "";
@@ -105,4 +106,20 @@ export function validateHoldings(holdings: Holding[], universe: Security[], poli
     }
   }
   return errors;
+}
+
+export function convertImportWeights(holdings: Holding[], universe: Security[], basis: "sleeve" | "portfolio", zh: boolean) {
+  const byId = new Map(universe.map(item => [item.id, item]));
+  const totals = sleeves.map(sleeve => ({ sleeve, total: holdings.filter(item => byId.get(item.tickerUniverseId)?.sleeve === sleeve).reduce((sum, item) => sum + item.weight, 0) }));
+  const errors: string[] = [];
+  if (basis === "sleeve") return { holdings: holdings.map(item => ({ ...item })), totals, errors };
+  const total = holdings.reduce((sum, item) => sum + item.weight, 0);
+  if (!Number.isFinite(total) || Math.abs(total - 1) > 1e-8) errors.push(zh ? `全股票组合权重须合计100%（当前${(total * 100).toFixed(2)}%）。` : `Whole-equity weights must total 100% (currently ${(total * 100).toFixed(2)}%).`);
+  for (const group of totals) if (!Number.isFinite(group.total) || group.total <= 0) errors.push(zh ? `${sleeveName(group.sleeve, zh)}缺少有效权重。` : `${sleeveName(group.sleeve, zh)} has no valid weight.`);
+  const converted = holdings.map(item => {
+    const sleeve = byId.get(item.tickerUniverseId)?.sleeve;
+    const total = totals.find(group => group.sleeve === sleeve)?.total ?? 0;
+    return { ...item, weight: total > 0 ? item.weight / total : NaN };
+  });
+  return { holdings: converted, totals, errors };
 }

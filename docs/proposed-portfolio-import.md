@@ -13,7 +13,9 @@ Choosing a CSV opens an explicit preview; it does not change the saved portfolio
 - Each preview row can use imported values, keep existing values where available, or be removed/skipped.
 - **Cancel entire import** closes the preview without changing the current draft or database.
 
-CSV columns: `Ticker,WeightPercent`; optional `Exchange` identifies the listing. `WeightPercent=1` means 1%, not 100%. Weights are within each market sleeve, not percentages of the entire portfolio. Each of the U.S., Japan, and emerging-market sleeves must independently total 100%.
+CSV columns: `Ticker,WeightPercent`; optional `Exchange` identifies the listing. Chinese ticker/exchange headings are also accepted. `WeightPercent=1` means 1%, not 100%.
+
+Select the weight basis explicitly in the preview. **Within-sleeve weights** must total 100% for each sleeve. **Whole-equity weights** must total 100% for the selected complete stock list and are divided by each sleeve subtotal to obtain within-sleeve weights. The preview shows the original and converted percentages. Conversion does not change approved market allocations; those remain controlled by the annual workflow. Whole-equity mode is replace-all only to avoid mixing normalized saved weights with global CSV weights. Apply first, then edit the draft if you need to combine lists. Skipped rows must still leave a fully reconciled whole-equity list.
 
 Every non-empty CSV row remains visible, including unknown or ambiguous securities. Leading zeroes and supported regional exchange aliases are normalized. Unknown names are never silently omitted. Invalid selected rows and duplicate identities block applying the preview; policy violations block submission.
 
@@ -25,13 +27,17 @@ Submission validates positive weights, unique securities, allowed markets, the e
 
 ## Unknown securities
 
-An administrator can use **Securities** to register a verified ticker, exchange, Chinese/English name, growth/value style, and reference source. Additions are audited and scoped to the administrator's organization. Shared seed securities remain available. Registration does not add the stock to a portfolio, approve it for investment, or guarantee that the data provider covers its price history.
+An administrator can use **Securities** to register a verified ticker, exchange, Chinese/English name, and growth/value style. Reference name and URL are optional; an empty URL receives an automatically generated reference link, not a price-scraping configuration. Names link to the reference again. Additions are audited and organization-scoped. Shared seed securities remain available.
+
+**Check ticker and price coverage** tests live price availability and independently checks the listing venue where Yahoo metadata is available. Unknown venue metadata is explicitly flagged for human confirmation. Registration rechecks server-side: definite exchange mismatches and unavailable prices are rejected. Short-history stocks may be registered with a warning but cannot pass the unchanged 100-complete-week backtest gate. Successful registration is not investment approval.
 
 After registration, the Execution Team selects **Refresh universe**, chooses the security in the preview, and reviews its weight. Business personnel must confirm classifications and any policy changes; backtesting still checks real price coverage.
 
 ## Upgrade and test checklist
 
-Migration `0020_organization_securities.sql` preserves existing shared securities and portfolio history; it adds organization-scoped registration. Use the normal migration command during deployment. No database reset is required. Follow the existing production backup procedure before schema updates.
+Migrations `0020_organization_securities.sql` and `0021_security_data_coverage.sql` preserve existing shared securities and portfolio history. The latter adds nullable registration coverage evidence; old rows are marked unchecked, not fabricated as verified. Use the normal migration command during deployment. No database reset is required. Follow the existing production backup procedure before schema updates.
+
+See [Historical Data Coverage](historical-data-coverage.md) for provider selection, completed-week alignment, and preflight behavior.
 
 Manual acceptance:
 

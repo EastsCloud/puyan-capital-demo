@@ -1,5 +1,16 @@
 # Isater Review Release Status
 
+## 2026-10-13: Historical coverage, listing validation, and weight-basis fixes
+
+- Detailed HTTP messages replace generic labels such as Conflict. Read-only preflight lists all security/benchmark failures and aligned sleeve coverage; backtest data failures use structured HTTP 422 responses.
+- Tokyo listings explicitly use Yahoo fallback. Both providers' daily adjusted prices are grouped by exchange-local completed week; current partial weeks are excluded. Corrected caches are separate from older weekly-label data.
+- CSV preview accepts an explicit whole-equity or within-sleeve weight basis and shows conversion results without overriding approved market allocations.
+- Security reference fields are optional, name links are restored, and registration checks live prices and listing venue evidence. Short histories can be registered with a warning but cannot bypass the unchanged 100-week backtest minimum.
+- Migration 0021 preserves existing data and adds nullable registration coverage evidence. No reset is required.
+- Verification: 76 automated tests, workspace type checks, production build, local desktop/mobile browser acceptance, and read-only live checks of the supplied 23-security review list plus four benchmarks passed within their stated scope. The live list remains blocked by CRCL/SNDK short histories; no financial approval is implied.
+
+Details: [Historical Data Coverage](docs/historical-data-coverage.md).
+
 ## 2026-10-12: Proposed portfolio import and draft editing
 
 - The normal page displays saved database holdings, not automatically loaded recommendations.

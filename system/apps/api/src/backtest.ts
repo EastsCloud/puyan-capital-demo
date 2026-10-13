@@ -10,25 +10,11 @@ import {
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
-import { eodhdSymbol, fetchEodhdPrices, getActiveEodhdToken } from "./eodhd.js";
+import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
+import { collectHistoricalSeries, historyReport, yahooSymbol, type PriceSeries } from "./market-history.js";
+export { fetchEodhdWeeklySeries, fetchYahooSeries, weekKey, yahooSymbol, type PriceSeries, type PricePoint } from "./market-history.js";
 
 type SleeveKey = "us" | "developedNonUs" | "emerging";
-
-export interface PricePoint {
-  date: string;
-  week: string;
-  value: number;
-}
-
-export interface PriceSeries {
-  symbol: string;
-  currency: string;
-  exchange: string;
-  points: PricePoint[];
-  sourceUrl: string;
-  sourceName: "EODHD" | "Yahoo Finance chart";
-  fallbackReason?: string;
-}
 
 function forbidden(message = "Forbidden") {
   const error = new Error(message) as Error & { statusCode: number };
@@ -44,83 +30,6 @@ function invalidState(message: string) {
 
 function jsonValue<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
-}
-
-export function weekKey(timestampSeconds: number): string {
-  const date = new Date(timestampSeconds * 1000);
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
-  return date.toISOString().slice(0, 10);
-}
-
-export function yahooSymbol(ticker: string, market: string): string {
-  if (market === "JP") return `${ticker}.T`;
-  if (market === "HK") return `${ticker}.HK`;
-  if (market === "CN_A") return `${ticker}.${ticker.startsWith("6") ? "SS" : "SZ"}`;
-  return ticker;
-}
-
-export async function fetchYahooSeries(symbol: string): Promise<PriceSeries> {
-  const sourceUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=3y&interval=1wk&events=history&includeAdjustedClose=true`;
-  let response: Response | null = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(sourceUrl, { headers: { "User-Agent": "Mozilla/5.0 Isater/0.1" }, signal: AbortSignal.timeout(25_000) });
-    if (response.ok) break;
-    if (response.status !== 429 || attempt === 2) throw invalidState(`Historical prices unavailable for ${symbol}: HTTP ${response.status}`);
-    await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
-  }
-  const payload = await response!.json() as {
-    chart?: { result?: Array<{
-      meta?: { currency?: string; exchangeName?: string };
-      timestamp?: number[];
-      indicators?: { adjclose?: Array<{ adjclose?: Array<number | null> }>; quote?: Array<{ close?: Array<number | null> }> };
-    }>; error?: { description?: string } };
-  };
-  const result = payload.chart?.result?.[0];
-  if (!result?.timestamp?.length) throw invalidState(`Historical prices unavailable for ${symbol}: ${payload.chart?.error?.description ?? "empty series"}`);
-  const prices = result.indicators?.adjclose?.[0]?.adjclose ?? result.indicators?.quote?.[0]?.close ?? [];
-  const byWeek = new Map<string, PricePoint>();
-  result.timestamp.forEach((timestamp, index) => {
-    const value = prices[index];
-    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return;
-    const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
-    byWeek.set(weekKey(timestamp), { date, week: weekKey(timestamp), value });
-  });
-  const points = [...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week));
-  if (points.length < 100) throw invalidState(`Historical prices for ${symbol} contain fewer than 100 weekly observations`);
-  return {
-    symbol,
-    currency: result.meta?.currency ?? "",
-    exchange: result.meta?.exchangeName ?? "",
-    points,
-    sourceUrl,
-    sourceName: "Yahoo Finance chart",
-  };
-}
-
-export async function fetchEodhdWeeklySeries(token: string, providerSymbol: string, canonicalSymbol: string): Promise<PriceSeries> {
-  const to = new Date();
-  const from = new Date(to);
-  from.setUTCFullYear(from.getUTCFullYear() - 3);
-  from.setUTCDate(from.getUTCDate() - 14);
-  const result = await fetchEodhdPrices(token, providerSymbol, {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-    period: "w",
-  });
-  const points = result.points.map((point) => {
-    const timestamp = Math.floor(new Date(`${point.date}T00:00:00Z`).getTime() / 1000);
-    return { date: point.date, week: weekKey(timestamp), value: point.value };
-  });
-  if (points.length < 100) throw invalidState(`Historical prices for ${providerSymbol} contain fewer than 100 weekly observations`);
-  return {
-    symbol: canonicalSymbol,
-    currency: "",
-    exchange: providerSymbol.split(".").at(-1) ?? "",
-    points,
-    sourceUrl: result.sourceUrl,
-    sourceName: "EODHD",
-  };
 }
 
 export function weightedReturns(series: Array<{ data: PriceSeries; weight: number }>, commonWeeks: string[]): number[] {
@@ -180,7 +89,7 @@ export async function saveObservations(series: PriceSeries[]): Promise<void> {
         const base = index * 6;
         values.push(observation.symbol, observation.date, observation.value, observation.currency,
           observation.sourceName, observation.sourceUrl);
-        return `($${base + 1}, $${base + 2}, 'adjusted_close', $${base + 3}, NULLIF($${base + 4}, ''), $${base + 5}, $${base + 6}, now())`;
+        return `($${base + 1}, $${base + 2}, 'adjusted_close_weekly_v2', $${base + 3}, NULLIF($${base + 4}, ''), $${base + 5}, $${base + 6}, now())`;
       });
       await client.query(
         `INSERT INTO market_observations
@@ -217,22 +126,7 @@ async function backtestParameters(organizationId: string): Promise<BacktestToler
 }
 
 export async function registerBacktestRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/api/workflows/:workflowId/backtest/context", async (request) => {
-    const user = requirePasswordChanged(request);
-    const { workflowId } = request.params as { workflowId: string };
-    const workflow = await pool.query("SELECT id FROM workflow_cases WHERE id = $1 AND organization_id = $2", [workflowId, user.organizationId]);
-    if (!workflow.rows[0]) throw invalidState("Workflow not found");
-    const latest = await pool.query(
-      `SELECT b.* FROM backtest_runs b JOIN proposed_portfolio_versions p ON p.id = b.proposed_portfolio_version_id
-        WHERE p.workflow_case_id = $1 ORDER BY b.run_at DESC LIMIT 1`, [workflowId],
-    );
-    return { policy: await backtestParameters(user.organizationId), backtestRun: latest.rows[0] ?? null };
-  });
-
-  app.post("/api/workflows/:workflowId/backtest/runs", async (request, reply) => {
-    const user = requirePasswordChanged(request);
-    if (!hasPermission(user.role, "backtest:run")) throw forbidden();
-    const { workflowId } = request.params as { workflowId: string };
+  async function prepare(workflowId: string, user: { organizationId: string; locale?: string }) {
     const workflow = await pool.query("SELECT * FROM workflow_cases WHERE id = $1 AND organization_id = $2 AND status = 'active'", [workflowId, user.organizationId]);
     if (!workflow.rows[0] || workflow.rows[0].current_step !== "backtest") throw invalidState("Backtest is not the current workflow step");
     const proposal = await pool.query(
@@ -247,6 +141,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
     const holdings = await pool.query("SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id = $1 ORDER BY sleeve, style, ticker", [proposal.rows[0].id]);
     const targets = jsonValue<{ equityTargets: Array<any> }>(proposal.rows[0].targets);
     const recommendation = jsonValue<{ marketWeights: { chinaA: number; hongKong: number } }>(proposal.rows[0].recommendation);
+    if (!Number.isFinite(recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong) || recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong <= 0) throw invalidState("Emerging-market benchmark weights are missing or invalid");
     const policy = await backtestParameters(user.organizationId);
     const sleeveBenchmarkSymbols: Record<SleeveKey, Array<{ symbol: string; eodhdSymbol: string; weight: number }>> = {
       us: [{ symbol: "^GSPC", eodhdSymbol: "GSPC.INDX", weight: 1 }],
@@ -256,31 +151,47 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
         { symbol: "^HSI", eodhdSymbol: "HSI.INDX", weight: recommendation.marketWeights.hongKong / (recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong) },
       ],
     };
+    if (!holdings.rows.length || (["us", "developedNonUs", "emerging"] as SleeveKey[]).some(sleeve => !holdings.rows.some(item => item.sleeve === sleeve) || !targets.equityTargets.find(item => item.key === sleeve))) throw invalidState("Saved proposal must contain holdings and targets for all three sleeves");
     const holdingSymbols = holdings.rows.map((holding) => ({
       ...holding,
       providerSymbol: yahooSymbol(holding.ticker, holding.market),
       eodhdSymbol: eodhdSymbol(holding.ticker, holding.market),
     }));
-    const requests = [...holdingSymbols.map((item) => ({ symbol: item.providerSymbol, eodhdSymbol: item.eodhdSymbol })),
-      ...Object.values(sleeveBenchmarkSymbols).flat().map((item) => ({ symbol: item.symbol, eodhdSymbol: item.eodhdSymbol }))];
+    const requests = [...holdingSymbols.map((item) => ({ symbol: item.providerSymbol, eodhdSymbol: item.eodhdSymbol, market: item.market })),
+      ...Object.values(sleeveBenchmarkSymbols).flat().filter(item => item.weight > 0).map((item) => ({ symbol: item.symbol, eodhdSymbol: item.eodhdSymbol }))];
     const uniqueRequests = [...new Map(requests.map((item) => [item.symbol, item])).values()];
     const allSymbols = uniqueRequests.map((item) => item.symbol);
     const eodhdToken = await getActiveEodhdToken(user.organizationId);
-    const allSeries: PriceSeries[] = [];
-    for (const requestItem of uniqueRequests) {
-      if (eodhdToken) {
-        try {
-          allSeries.push(await fetchEodhdWeeklySeries(eodhdToken, requestItem.eodhdSymbol, requestItem.symbol));
-          continue;
-        } catch (error) {
-          const fallback = await fetchYahooSeries(requestItem.symbol);
-          fallback.fallbackReason = error instanceof Error ? error.message : String(error);
-          allSeries.push(fallback);
-          continue;
-        }
-      }
-      allSeries.push(await fetchYahooSeries(requestItem.symbol));
-    }
+    const collected = await collectHistoricalSeries(uniqueRequests, eodhdToken);
+    const report = historyReport(collected, (["us", "developedNonUs", "emerging"] as SleeveKey[]).map(sleeve => ({ sleeve, symbols: [...holdingSymbols.filter(item => item.sleeve === sleeve).map(item => item.providerSymbol), ...sleeveBenchmarkSymbols[sleeve].filter(item => item.weight > 0).map(item => item.symbol)] })), user.locale === "zh-CN");
+    return { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries: collected.series, report: { ...report, proposedPortfolioVersion: Number(proposal.rows[0].version) } };
+  }
+  app.post("/api/workflows/:workflowId/backtest/preflight", async (request) => {
+    const user = requirePasswordChanged(request);
+    if (!hasPermission(user.role, "backtest:run")) throw forbidden();
+    const { workflowId } = request.params as { workflowId: string };
+    return { report: (await prepare(workflowId, user)).report };
+  });
+
+  app.get("/api/workflows/:workflowId/backtest/context", async (request) => {
+    const user = requirePasswordChanged(request);
+    const { workflowId } = request.params as { workflowId: string };
+    const workflow = await pool.query("SELECT id FROM workflow_cases WHERE id = $1 AND organization_id = $2", [workflowId, user.organizationId]);
+    if (!workflow.rows[0]) throw invalidState("Workflow not found");
+    const latest = await pool.query(
+      `SELECT b.* FROM backtest_runs b JOIN proposed_portfolio_versions p ON p.id = b.proposed_portfolio_version_id
+        WHERE p.workflow_case_id = $1 AND p.id = (SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1)
+        ORDER BY b.run_at DESC LIMIT 1`, [workflowId],
+    );
+    return { policy: await backtestParameters(user.organizationId), backtestRun: latest.rows[0] ?? null };
+  });
+
+  app.post("/api/workflows/:workflowId/backtest/runs", async (request, reply) => {
+    const user = requirePasswordChanged(request);
+    if (!hasPermission(user.role, "backtest:run")) throw forbidden();
+    const { workflowId } = request.params as { workflowId: string };
+    const { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries, report } = await prepare(workflowId, user);
+    if (!report.ready) return reply.code(422).send({ error: "backtest_data_unready", message: report.issues.map(item => item.message).join(" "), report });
     await saveObservations(allSeries);
     const bySymbol = new Map(allSeries.map((item) => [item.symbol, item]));
     const sleeveMetrics = [];
@@ -288,7 +199,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
     for (const sleeve of ["us", "developedNonUs", "emerging"] as SleeveKey[]) {
       const sleeveHoldings = holdingSymbols.filter((item) => item.sleeve === sleeve);
       const securities = sleeveHoldings.map((item) => ({ data: bySymbol.get(item.providerSymbol)!, weight: Number(item.weight) }));
-      const benchmarks = sleeveBenchmarkSymbols[sleeve].map((item) => ({ data: bySymbol.get(item.symbol)!, weight: item.weight }));
+      const benchmarks = sleeveBenchmarkSymbols[sleeve].filter(item => item.weight > 0).map((item) => ({ data: bySymbol.get(item.symbol)!, weight: item.weight }));
       const commonWeeks = [...new Set(securities[0].data.points.map((point) => point.week))]
         .filter((week) => [...securities, ...benchmarks].every((item) => item.data.points.some((point) => point.week === week)))
         .sort();
@@ -324,13 +235,13 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
         `INSERT INTO backtest_runs
           (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
            metrics, hard_control_pass, review_flags, model_version, run_by)
-         VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.0.0', $10) RETURNING *`,
+         VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.1.0', $10) RETURNING *`,
         [proposal.rows[0].id, next.rows[0].run_number, startDate, endDate,
-          JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: "constant sleeve weights; weekly total-return proxy from adjusted close" }),
+          JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: report.methodology }),
           JSON.stringify({ provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",
             primaryProviderStatus: eodhdToken ? (allSeries.every((item) => item.sourceName === "EODHD") ? "succeeded" : "partial_fallback") : "not_configured",
             symbols: allSymbols, eodhdSymbols: uniqueRequests.map((item) => item.eodhdSymbol), retrievedAt: new Date().toISOString(),
-            persistedToMarketObservations: true,
+            persistedToMarketObservations: true, coverageReport: report,
             sources: allSeries.map((item) => ({ symbol: item.symbol, provider: item.sourceName, url: item.sourceUrl, fallbackReason: item.fallbackReason ?? null })) }),
           JSON.stringify({ sleeves: sleeveMetrics }), hardControlPass, JSON.stringify(reviewFlags), user.id],
       );

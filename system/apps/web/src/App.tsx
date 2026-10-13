@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { ProposedPortfolioEditor } from "./ProposedPortfolioEditor";
 import { SecuritiesPage } from "./SecuritiesPage";
+import { apiErrorMessage } from "./api-error";
+import { HistoryCoveragePanel, type HistoryReport } from "./HistoryCoveragePanel";
 import type { Holding } from "./proposed-portfolio-model";
 import {
   Bell, CheckCircle2, ChevronRight, ClipboardCheck, CloudDownload, Database, FileBarChart,
@@ -156,6 +158,7 @@ interface TickerItem {
 
 interface ProposedPortfolioContext {
   universe: TickerItem[];
+  approvedSleeveWeights?: Partial<Record<"us" | "developedNonUs" | "emerging", number>>;
   policy: { maxSingleSecurityWeightPct: number; styleTickerMin: number; styleTickerMax: number };
   recommendedHoldings: Array<{ tickerUniverseId: string; weight: number }>;
   proposedPortfolioVersion: {
@@ -171,7 +174,7 @@ interface BacktestRun {
   start_date: string;
   end_date: string;
   hard_control_pass: boolean;
-  data_manifest: { provider: string; primaryProvider: string; primaryProviderStatus: string; symbols: string[] };
+  data_manifest: { provider: string; primaryProvider: string; primaryProviderStatus: string; symbols: string[]; coverageReport?: HistoryReport };
   metrics: { sleeves: Array<{
     sleeve: "us" | "developedNonUs" | "emerging";
     observationCount: number;
@@ -461,7 +464,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const response = await fetch(path, { credentials: "include", ...init, headers });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(body.error ?? "request_failed"), { code: body.error, body });
+    if (!response.ok) throw Object.assign(new Error(apiErrorMessage(body, `HTTP ${response.status}`)), { code: body.error, body });
     return body as T;
   } finally {
     reportApiActivity(-1);
@@ -1192,6 +1195,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
   const [proposalDirty, setProposalDirty] = useState(false);
   const reportProposalDirty = useCallback((dirty: boolean) => { setProposalDirty(dirty); onDirtyChange(dirty); }, [onDirtyChange]);
   const [backtestContext, setBacktestContext] = useState<BacktestContext | null>(null);
+  const [historyCoverage, setHistoryCoverage] = useState<HistoryReport | null>(null);
   const [optimizationRun, setOptimizationRun] = useState<OptimizationRun | null>(null);
   const [portfolioApprovalContext, setPortfolioApprovalContext] = useState<PortfolioApprovalContext | null>(null);
   const [implementationContext, setImplementationContext] = useState<ImplementationContext | null>(null);
@@ -1199,6 +1203,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const displayStep = viewedStep ?? (workflow?.current_step as AnnualStep | undefined) ?? null;
+  useEffect(() => { setHistoryCoverage(null); }, [workflow?.id, displayStep]);
   const viewStep = (step: AnnualStep | null) => {
     if (proposalDirty && step !== displayStep && !window.confirm(zh ? "拟持仓尚未保存，离开会放弃草稿。确定离开？" : "Unsaved proposed holdings will be discarded. Leave this step?")) return;
     setViewedStep(step);
@@ -1325,14 +1330,28 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
     }
     finally { setBusy(false); }
   }
+  async function checkBacktestCoverage() {
+    if (!workflow) return;
+    setBusy(true); setMessage(null); setHistoryCoverage(null);
+    try {
+      const result = await api<{ report: HistoryReport }>(`/api/workflows/${workflow.id}/backtest/preflight`, { method: "POST", body: "{}" });
+      setHistoryCoverage(result.report);
+      setMessage(result.report.ready ? (zh ? "价格覆盖检查通过，可以运行回测；风险控制仍需计算。" : "Price coverage ready. Run the backtest to check risk controls.") : (zh ? "已列出所有数据问题。不会自动放宽100周门槛。" : "All data issues are listed. The 100-week minimum has not been relaxed."));
+    } catch (reason) { setMessage((reason as Error).message); } finally { setBusy(false); }
+  }
   async function runBacktest() {
     if (!workflow) return;
-    setBusy(true); setMessage(zh ? "正在取得并核验三个市场的三年周度真实价格。" : "Retrieving and validating three years of weekly market prices.");
+    setBusy(true); setHistoryCoverage(null); setMessage(zh ? "正在取得并核验三个市场的三年周度真实价格。" : "Retrieving and validating three years of weekly market prices.");
     try {
       const result = await api<{ backtestRun: BacktestRun }>(`/api/workflows/${workflow.id}/backtest/runs`, { method: "POST", body: "{}" });
       setBacktestContext((current) => ({ policy: current?.policy ?? { months: 36, frequency: "weekly", betaRelative: 0.05, returnShortfall: 0.05, drawdownExcess: 0.10 }, backtestRun: result.backtestRun }));
+      setHistoryCoverage(result.backtestRun.data_manifest.coverageReport ?? null);
       setMessage(result.backtestRun.hard_control_pass ? (zh ? "三个 Sleeve 均通过硬性控制。" : "All sleeves passed hard controls.") : (zh ? "至少一个 Sleeve 未通过，需进入优化。" : "At least one sleeve failed and requires optimization."));
-    } catch (reason) { setMessage(zh ? `回测失败：${(reason as Error).message}。系统没有使用样本价格。` : `Backtest failed: ${(reason as Error).message}. No sample prices were used.`); }
+    } catch (reason) {
+      const report = (reason as Error & { body?: { report?: HistoryReport } }).body?.report;
+      if (report) setHistoryCoverage(report);
+      setMessage(zh ? `回测未完成：${(reason as Error).message}。未使用样本价格，也未放宽历史长度要求。` : `Backtest not completed: ${(reason as Error).message}. No sample prices or relaxed history gate were used.`);
+    }
     finally { setBusy(false); }
   }
   async function recordBacktestOutcome() {
@@ -1462,9 +1481,12 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       }} />}
       {displayStep === "backtest" && backtestContext && <section className="annual-data-panel backtest-panel">
         <header><div><span className="section-label">{zh ? "真实历史回测" : "Historical backtest"}</span><h3>{zh ? `${backtestContext.policy.months} 个月 · 周度 · 分 Sleeve 检查` : `${backtestContext.policy.months} months · weekly · sleeve-level controls`}</h3></div>{backtestContext.backtestRun && <strong className={backtestContext.backtestRun.hard_control_pass ? "result-pass" : "result-fail"}>{backtestContext.backtestRun.hard_control_pass ? (zh ? "通过" : "PASS") : (zh ? "需要优化" : "OPTIMIZATION REQUIRED")}</strong>}</header>
+        <p className="readonly-note">{zh ? "EODHD为首选；日本个股目前使用Yahoo后备源。短历史股票不会自动剔除或降低门槛。" : "EODHD is primary; Tokyo listings currently use Yahoo fallback. Short-history names are not silently excluded and the minimum is unchanged."}</p>
+        {viewIsCurrent && user.role === "execution_team" && <div className="proposal-toolbar"><button className="secondary-button compact" onClick={checkBacktestCoverage} disabled={busy}>{zh ? "检查全部价格覆盖" : "Check all price coverage"}</button>{backtestContext.backtestRun && <button className="secondary-button compact" onClick={runBacktest} disabled={busy}>{zh ? "重新运行真实历史回测" : "Rerun historical backtest"}</button>}</div>}
+        {(historyCoverage ?? backtestContext.backtestRun?.data_manifest.coverageReport) && <HistoryCoveragePanel report={(historyCoverage ?? backtestContext.backtestRun!.data_manifest.coverageReport)!} zh={zh} />}
         {!backtestContext.backtestRun ? <div className="backtest-ready"><div><strong>{zh ? "检查 Beta、收益率下限与最大回撤" : "Check beta, return floor and maximum drawdown"}</strong><span>{zh ? "收益率只设下限；高于目标不会判定失败。每个 Sleeve 使用对应市场基准。" : "Return is a floor. Each sleeve uses its own market benchmark."}</span></div>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={runBacktest} disabled={busy}>{busy ? (zh ? "正在回测" : "Running") : (zh ? "运行真实历史回测" : "Run historical backtest")}</button>}</div> : <>
           <div className="table-wrap"><table><thead><tr><th>Sleeve</th><th>{zh ? "年化收益 / 目标" : "Return / target"}</th><th>Beta / {zh ? "目标" : "target"}</th><th>{zh ? "最大回撤 / 限制" : "Drawdown / limit"}</th><th>{zh ? "结果" : "Result"}</th></tr></thead><tbody>{backtestContext.backtestRun.metrics.sleeves.map((metric) => <tr key={metric.sleeve}><td><strong>{sleeveLabels[metric.sleeve]}</strong><small>{metric.observationCount} {zh ? "周" : "weeks"}</small></td><td>{pct(metric.annualizedReturn)} / {pct(metric.targetReturn)}<small className={`status-${metric.returnControl.status}`}>{metric.returnControl.status}</small></td><td>{metric.beta.toFixed(2)} / {metric.targetBeta.toFixed(2)}<small className={`status-${metric.betaControl.status}`}>{metric.betaControl.status}</small></td><td>{pct(metric.maximumDrawdown)} / {pct(metric.maximumDrawdownLimit)}<small className={`status-${metric.drawdownControl.status}`}>{metric.drawdownControl.status}</small></td><td><strong className={metric.hardPass ? "result-pass" : "result-fail"}>{metric.hardPass ? (zh ? "通过" : "Pass") : (zh ? "未通过" : "Fail")}</strong></td></tr>)}</tbody></table></div>
-          <details className="source-details"><summary>{zh ? "查看数据范围与来源" : "View coverage and sources"}</summary><p>{backtestContext.backtestRun.start_date} – {backtestContext.backtestRun.end_date}；{backtestContext.backtestRun.data_manifest.provider}。{zh ? "付费首选源尚未配置，公开后备源返回的复权价格已写入历史数据库。" : "The paid primary source is not configured; fallback adjusted prices were persisted to history."}</p></details>
+          <details className="source-details"><summary>{zh ? "查看数据范围与来源" : "View coverage and sources"}</summary><p>{backtestContext.backtestRun.start_date} – {backtestContext.backtestRun.end_date}；{backtestContext.backtestRun.data_manifest.provider}。{zh ? `首选源状态：${backtestContext.backtestRun.data_manifest.primaryProviderStatus}；实际来源按明细显示，历史价格已保存。` : `Primary status: ${backtestContext.backtestRun.data_manifest.primaryProviderStatus}. Actual providers are recorded per symbol; historical prices were persisted.`}</p></details>
           {viewIsCurrent && user.role === "execution_team" && <div className="approval-actions"><button className="primary-button compact" onClick={recordBacktestOutcome} disabled={busy}>{backtestContext.backtestRun.hard_control_pass ? (zh ? "确认并进入审批" : "Confirm and open approval") : (zh ? "确认并进入优化" : "Confirm and optimize")}</button></div>}
         </>}
       </section>}

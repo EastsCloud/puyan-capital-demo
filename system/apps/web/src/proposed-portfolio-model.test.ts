@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { findSecurity, parsePortfolioCsv, previewRows, previewHoldings, validateHoldings, type Security } from "./proposed-portfolio-model";
+import { convertImportWeights, findSecurity, parsePortfolioCsv, previewRows, previewHoldings, validateHoldings, type Security } from "./proposed-portfolio-model";
 
 const names = [
   ["AAPL", "MSFT", "NVDA", "AMZN", "JPM", "XOM", "JNJ", "KO"],
@@ -17,6 +17,19 @@ const csv = readFileSync(new URL("../public/templates/proposed-portfolio-templat
 const baseline = [{ tickerUniverseId: "0-0", weight: 0.5 }, { tickerUniverseId: "0-1", weight: 0.5 }];
 
 describe("proposed holdings imports", () => {
+  it("explicitly converts whole-equity percentages to sleeve percentages without changing source values", () => {
+    const holdings = universe.map(item => ({ tickerUniverseId: item.id, weight: (item.sleeve === "us" ? 0.6 : item.sleeve === "developedNonUs" ? 0.25 : 0.15) / 8 }));
+    const before = structuredClone(holdings);
+    const result = convertImportWeights(holdings, universe, "portfolio", true);
+    expect(result.errors).toEqual([]);expect(holdings).toEqual(before);
+    expect(validateHoldings(result.holdings, universe, policy, true)).toEqual([]);
+    expect(result.totals.map(item => item.total)).toEqual([0.6,0.25,0.15]);
+    expect(convertImportWeights(holdings, universe, "sleeve", true).holdings).toEqual(holdings);
+  });
+  it("rejects incomplete whole-equity selections and preserves exchange columns with Chinese headings", () => {
+    expect(convertImportWeights([{tickerUniverseId:"0-0",weight:0.6}],universe,"portfolio",true).errors.length).toBeGreaterThan(0);
+    expect(parsePortfolioCsv("股票代码,股票市场,WeightPercent\n5,HKEX,3",universe,true)[0].securityId).toBe("2-4");
+  });
   it("loads all 24 template names, with eight names and 100% in each market sleeve", () => {
     const imported = parsePortfolioCsv(csv, universe, true);
     expect(imported).toHaveLength(24);

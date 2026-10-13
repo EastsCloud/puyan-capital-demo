@@ -6,17 +6,15 @@ import { requirePasswordChanged } from "./auth.js";
 import {
   annualizedReturn,
   calculateBeta,
-  fetchEodhdWeeklySeries,
-  fetchYahooSeries,
   maximumDrawdown,
   saveObservations,
-  weekKey,
   weightedReturns,
   yahooSymbol,
   type PriceSeries,
 } from "./backtest.js";
 import { pool } from "./db.js";
 import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
+import { chooseCachedSeries, collectHistoricalSeries } from "./market-history.js";
 
 type SleeveKey = "us" | "developedNonUs" | "emerging";
 
@@ -67,23 +65,15 @@ async function effectiveParameters(organizationId: string): Promise<Record<strin
 
 async function storedSeries(symbol: string): Promise<PriceSeries> {
   const rows = await pool.query(
-    `SELECT DISTINCT ON (observation_date) observation_date, value, currency, source_url, source_name
+    `SELECT observation_date, value, currency, source_url, source_name
        FROM market_observations
-      WHERE instrument_key = $1 AND field = 'adjusted_close'
-      ORDER BY observation_date, CASE WHEN source_name = 'EODHD' THEN 0 ELSE 1 END, retrieved_at DESC`, [symbol],
+      WHERE instrument_key = $1 AND field = 'adjusted_close_weekly_v2'
+        AND observation_date >= CURRENT_DATE - INTERVAL '3 years 14 days'
+      ORDER BY observation_date, retrieved_at DESC`, [symbol],
   );
-  if (rows.rows.length < 100) throw invalidState(`Stored history for ${symbol} is insufficient; rerun backtest data retrieval`);
-  return {
-    symbol,
-    currency: rows.rows[0].currency ?? "",
-    exchange: "",
-    sourceUrl: rows.rows[0].source_url ?? "",
-    sourceName: rows.rows[0].source_name === "EODHD" ? "EODHD" : "Yahoo Finance chart",
-    points: rows.rows.map((row) => {
-      const raw = row.observation_date instanceof Date ? row.observation_date.toISOString().slice(0, 10) : String(row.observation_date).slice(0, 10);
-      return { date: raw, week: weekKey(new Date(`${raw}T00:00:00Z`).getTime() / 1000), value: Number(row.value) };
-    }),
-  };
+  const series = chooseCachedSeries(symbol, rows.rows);
+  if (!series) throw invalidState(`Stored history for ${symbol} is insufficient; rerun backtest data retrieval`);
+  return series;
 }
 
 function weightVectors(count: number, maxPct: number): number[][] {
@@ -189,7 +179,6 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       returnExcessReview: Number(backtest.returnExcessReviewTolerance ?? 0.50), drawdownExcess: Number(backtest.drawdownExcessTolerance ?? 0.10),
     };
     const maxWeightPct = Number(parameters.portfolioConstruction?.maxSingleSecurityWeightPct ?? 35);
-    const benchmarkBySleeve: Record<SleeveKey, string[]> = { us: ["^GSPC"], developedNonUs: ["^N225"], emerging: ["000001.SS", "^HSI"] };
     const priorBenchmarkManifest = jsonValue<{ sleeves: Record<SleeveKey, Array<{ symbol: string; weight: number }>> }>(prior.rows[0].benchmark_manifest);
     const universeResult = await pool.query(
       "SELECT * FROM ticker_universe WHERE enabled = true AND sleeve = ANY($1::text[]) AND (organization_id IS NULL OR organization_id = $2) ORDER BY sleeve, style, ticker",
@@ -207,6 +196,13 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const originalHoldings = holdingsResult.rows.map((item) => normalizeHolding(item));
     const originalWeights = new Map(originalHoldings.map((holding) => [holdingKey(holding), holding.weight]));
     const eodhdToken = await getActiveEodhdToken(user.organizationId);
+    const retrieveSeries = async (symbol: string, providerSymbol: string, market?: string) => {
+      const result = await collectHistoricalSeries([{ symbol, eodhdSymbol: providerSymbol, market }], eodhdToken);
+      const coverage = result.coverage[0];
+      if (coverage.status !== "ready") throw invalidState(`${symbol}: ${coverage.observations} complete weekly observations; at least 100 required. ${coverage.reason ?? ""}`);
+      await saveObservations(result.series);
+      return result.series[0];
+    };
     const seriesCache = new Map<string, Promise<PriceSeries>>();
     const priceSeries = (holding: OptimizerHolding): Promise<PriceSeries> => {
       const symbol = yahooSymbol(holding.ticker, holding.market);
@@ -216,19 +212,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
         try {
           return await storedSeries(symbol);
         } catch {
-          let fetched: PriceSeries;
-          if (eodhdToken) {
-            try {
-              fetched = await fetchEodhdWeeklySeries(eodhdToken, eodhdSymbol(holding.ticker, holding.market), symbol);
-            } catch (error) {
-              fetched = await fetchYahooSeries(symbol);
-              fetched.fallbackReason = error instanceof Error ? error.message : String(error);
-            }
-          } else {
-            fetched = await fetchYahooSeries(symbol);
-          }
-          await saveObservations([fetched]);
-          return fetched;
+          return retrieveSeries(symbol, eodhdSymbol(holding.ticker, holding.market), holding.market);
         }
       })();
       seriesCache.set(symbol, requested);
@@ -238,8 +222,13 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     for (const sleeve of failedSleeves) {
       const holdings = holdingsResult.rows.filter((item) => item.sleeve === sleeve).map((item) => normalizeHolding(item));
       const universe = universeResult.rows.filter((item) => item.sleeve === sleeve).map((item) => normalizeHolding(item));
-      const benchmarkSeries = await Promise.all(benchmarkBySleeve[sleeve].map(storedSeries));
-      const benchmarkWeights = priorBenchmarkManifest.sleeves[sleeve].map((item) => Number(item.weight));
+      const activeBenchmarks = priorBenchmarkManifest.sleeves[sleeve].filter(item => Number(item.weight) > 0);
+      const indexSymbols: Record<string, string> = { "^GSPC": "GSPC.INDX", "^N225": "N225.INDX", "000001.SS": "000001.SHG", "^HSI": "HSI.INDX" };
+      const benchmarkSeries = await Promise.all(activeBenchmarks.map(async item => {
+        try { return await storedSeries(item.symbol); }
+        catch { return retrieveSeries(item.symbol, indexSymbols[item.symbol] ?? item.symbol); }
+      }));
+      const benchmarkWeights = activeBenchmarks.map(item => Number(item.weight));
       const target = targets.equityTargets.find((item) => item.key === sleeve);
       const evaluate = async (candidateHoldings: OptimizerHolding[], replacements: number): Promise<FeasibleSolution[]> => {
         const securitySeries = await Promise.all(candidateHoldings.map(priceSeries));

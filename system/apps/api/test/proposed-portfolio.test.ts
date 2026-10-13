@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({ db: null as any }));
+vi.mock("../src/eodhd.js", async () => ({ ...(await import("../src/eodhd-client.js")), getActiveEodhdToken: async () => "test-token" }));
 vi.mock("../src/db.js", () => {
   const query = async (sql: string, values?: unknown[]) => {
     if (values === undefined) {
@@ -21,6 +22,16 @@ vi.mock("../src/auth.js", () => ({ requirePasswordChanged: (request: any) => {
   if (!request.currentUser) throw Object.assign(new Error("unauthorized"), { statusCode: 401 });
   return request.currentUser;
 } }));
+vi.mock("../src/market-history.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/market-history.js")>();
+  return { ...actual,
+    collectHistoricalSeries: async (requests: Array<{symbol:string}>) => {
+      const symbol=requests[0].symbol;const unavailable=symbol==="NOREAL";const count=symbol==="CRCL"?72:150;
+      return { series:unavailable?[]:[{symbol,exchange:symbol==="CRCL"?"NYQ":"NMS",sourceName:"Yahoo Finance chart",points:[]}], coverage:[{symbol,providerSymbol:symbol,provider:"Yahoo Finance chart",observations:unavailable?0:count,firstDate:"2023-10-06",lastDate:"2026-10-09",status:unavailable?"unavailable":count<100?"short_history":"ready",reason:unavailable?"No price data":null,fallbackReason:"test"}] };
+    },
+    fetchYahooSeries: async (symbol: string) => ({symbol,exchange:symbol==="CRCL"?"NYQ":"NMS",points:[]}),
+  };
+});
 import { registerProposedPortfolioRoutes } from "../src/proposed-portfolio.js";
 import { registerSecurityRoutes } from "../src/securities.js";
 
@@ -32,7 +43,7 @@ beforeAll(async () => {
   state.db = new PGlite({ extensions: { pgcrypto } });
   const directory = new URL("../../../db/migrations/", import.meta.url);
   const files = (await readdir(directory)).filter((file) => file.endsWith(".sql")).sort();
-  for (const file of files.filter((file) => !file.startsWith("0020"))) await state.db.exec(await readFile(new URL(file, directory), "utf8"));
+  for (const file of files.filter((file) => Number(file.slice(0,4)) < 20)) await state.db.exec(await readFile(new URL(file, directory), "utf8"));
   organizationId = (await state.db.query("INSERT INTO organizations (name) VALUES ('Proposal tests') RETURNING id")).rows[0].id;
   otherOrganizationId = (await state.db.query("INSERT INTO organizations (name) VALUES ('Other tests') RETURNING id")).rows[0].id;
   adminId = (await state.db.query("INSERT INTO users (organization_id, username, display_name, role, password_hash, must_change_password) VALUES ($1, 'test-admin', 'Test', 'system_admin', 'not-a-credential', false) RETURNING id", [organizationId])).rows[0].id;
@@ -46,6 +57,7 @@ beforeAll(async () => {
   for (const name of existingNames) await state.db.query("INSERT INTO proposed_holdings (proposed_portfolio_version_id, ticker, exchange_code, market, sleeve, style, weight) VALUES ($1,$2,$3,$4,$5,$6,0.125)", [approvedId, name.ticker, name.exchange_code, name.market, name.sleeve, name.style]);
   // Apply the new migration to a populated database, just as a deployment would.
   await state.db.exec(await readFile(new URL("0020_organization_securities.sql", directory), "utf8"));
+  await state.db.exec(await readFile(new URL("0021_security_data_coverage.sql", directory), "utf8"));
   app.decorateRequest("currentUser", null);
   app.addHook("onRequest", async (request) => { request.currentUser = user(request.headers["x-test-role"] as string ?? "execution_team", request.headers["x-test-org"] as string ?? organizationId) as any; });
   app.setErrorHandler((error, _request, reply) => reply.code(error instanceof ZodError ? 400 : (error as any).statusCode ?? 500).send({ error: (error as Error).message }));
@@ -105,5 +117,20 @@ describe("proposed portfolio persistence and security registration", () => {
     expect(wrongWeights.statusCode).toBe(409); expect(wrongWeights.json().error).toContain("100%");
     await state.db.query("UPDATE workflow_cases SET current_step = 'backtest' WHERE id = $1", [workflowId]);
     expect((await app.inject({ method: "POST", url: `/api/workflows/${workflowId}/proposed-portfolio/versions`, payload: { holdings } })).statusCode).toBe(409);
+  });
+  it("allows short-history registration with an explicit warning and auto-generated reference", async () => {
+    const headers={"x-test-role":"system_admin"};
+    const check=await app.inject({method:"POST",url:"/api/admin/securities/check",headers,payload:{ticker:"CRCL",exchangeCode:"NYSE"}});
+    expect(check.statusCode).toBe(200);expect(check.json().validation.coverage.status).toBe("short_history");
+    const saved=await app.inject({method:"POST",url:"/api/admin/securities",headers,payload:{ticker:"CRCL",exchangeCode:"NYSE",nameEn:"Test security",nameZh:"测试证券",style:"growth"}});
+    expect(saved.statusCode).toBe(201);expect(saved.json().security.source_url).toContain("finance.yahoo.com/quote/CRCL");
+    expect(saved.json().security.data_coverage).toMatchObject({status:"short_history",observations:72});
+  });
+  it("blocks a wrong listing venue and unavailable data without inserting records", async () => {
+    const headers={"x-test-role":"system_admin"};
+    const payload={ticker:"CRCL",exchangeCode:"NASDAQ",nameEn:"Test",nameZh:"测试",style:"growth"};
+    expect((await app.inject({method:"POST",url:"/api/admin/securities",headers,payload})).statusCode).toBe(422);
+    expect((await app.inject({method:"POST",url:"/api/admin/securities",headers,payload:{...payload,ticker:"NOREAL"}})).statusCode).toBe(422);
+    expect((await state.db.query("SELECT * FROM ticker_universe WHERE ticker = 'NOREAL'")).rows).toHaveLength(0);
   });
 });

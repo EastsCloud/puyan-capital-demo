@@ -949,7 +949,11 @@ th {
 .proposal-preview { border: 2px solid var(--rh-accent-strong); padding: 18px; margin: 22px 0; background: var(--rh-surface); }
 .proposal-preview header h4 { margin: 0 0 8px; overflow-wrap: anywhere; }
 .proposal-preview header p, .proposed-portfolio-panel > header p { font-size: 13px; color: var(--rh-muted); }
-.proposal-mode, .proposal-add { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 18px 0; }
+.proposal-mode, .proposal-add, .proposal-weight-basis { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 18px 0; }
+.history-coverage-panel { margin: 18px 0; padding: 16px; border: 1px solid var(--rh-line); background: #fafcf9; overflow-wrap: anywhere; }
+.history-coverage-panel h4 { margin: 0 0 12px; }
+.history-coverage-panel table { min-width: 700px; }
+.history-coverage-panel td small { display: block; max-width: 400px; margin-top: 6px; }
 .proposal-preview-table { min-width: 850px; }
 .proposal-preview-table tr.excluded { opacity: .55; }
 .proposed-portfolio-panel select, .proposed-portfolio-panel input, .security-form input, .security-form select { max-width: 100%; min-height: 38px; padding: 6px 9px; border: 1px solid var(--rh-line); border-radius: 4px; background: #fff; color: var(--rh-ink); }

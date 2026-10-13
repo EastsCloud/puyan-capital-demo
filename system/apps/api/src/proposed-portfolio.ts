@@ -84,7 +84,10 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
        GROUP BY p.id ORDER BY p.version DESC LIMIT 1`,
       [workflowId],
     );
-    return { universe: universe.rows, policy, recommendedHoldings: defaults, proposedPortfolioVersion: latest.rows[0] ?? null };
+    const target = await pool.query("SELECT targets FROM sleeve_target_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1", [workflowId]);
+    const equityTargets = target.rows[0] ? jsonValue<{ equityTargets?: Array<{ key: string; withinEquityWeight: number }> }>(target.rows[0].targets).equityTargets : undefined;
+    const approvedSleeveWeights = equityTargets ? Object.fromEntries(equityTargets.map(item => [item.key, Number(item.withinEquityWeight)])) : undefined;
+    return { universe: universe.rows, policy, recommendedHoldings: defaults, proposedPortfolioVersion: latest.rows[0] ?? null, approvedSleeveWeights };
   });
 
   app.post("/api/workflows/:workflowId/proposed-portfolio/versions", async (request, reply) => {
