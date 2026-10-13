@@ -47,6 +47,7 @@ describe("PostgreSQL migrations", () => {
       "execution_fill_lines",
       "external_cash_flows",
       "report_distributions",
+      "backtest_history_confirmations",
     ]));
   });
 
@@ -78,5 +79,15 @@ describe("PostgreSQL migrations", () => {
     );
     await expect(db.exec("UPDATE audit_events SET action = 'changed'")).rejects.toThrow(/immutable/);
     await expect(db.exec("DELETE FROM audit_events")).rejects.toThrow(/immutable/);
+  });
+  it("stores immutable short-history consent independently of resettable workflow records", async () => {
+    const org = await db.query<{ id: string }>("INSERT INTO organizations (name) VALUES ('Short History Test') RETURNING id");
+    const user = await db.query<{ id: string }>(`INSERT INTO users (organization_id,username,display_name,role,password_hash) VALUES ($1,'executor','Executor','execution_team','test-only-hash') RETURNING id`, [org.rows[0].id]);
+    const result = await db.query<{ id: string; history_snapshot: any }>(`INSERT INTO backtest_history_confirmations (organization_id,workflow_case_id,proposed_portfolio_version_id,confirmed_by,coverage_fingerprint,warning_text,history_snapshot) VALUES ($1,gen_random_uuid(),gen_random_uuid(),$2,$3,'Test warning',$4) RETURNING id, history_snapshot`, [org.rows[0].id,user.rows[0].id,'a'.repeat(64),JSON.stringify({commonWeeks:71,policy:{betaRelative:0.05}})]);
+    expect(result.rows[0].history_snapshot.commonWeeks).toBe(71);
+    await expect(db.query("UPDATE backtest_history_confirmations SET warning_text = 'changed' WHERE id = $1", [result.rows[0].id])).rejects.toThrow(/immutable/);
+    await expect(db.query("DELETE FROM backtest_history_confirmations WHERE id = $1", [result.rows[0].id])).rejects.toThrow(/immutable/);
+    const columns = await db.query<{ column_name: string; column_default: string }>("SELECT column_name,column_default FROM information_schema.columns WHERE table_name='backtest_runs' AND column_name='history_mode'");
+    expect(columns.rows[0].column_default).toContain('standard');
   });
 });

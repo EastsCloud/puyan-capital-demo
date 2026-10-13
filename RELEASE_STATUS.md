@@ -1,5 +1,15 @@
 # Isater Review Release Status
 
+## 2026-10-13: Explicit available-history backtesting
+
+- Execution users can explicitly confirm a single run using the common available real-price window. Standard runs still require 100 completed weeks. Missing prices and uncalculable beta remain blocked; no sample prices or excluded holdings are introduced.
+- Immutable PostgreSQL confirmation records preserve actor, time, proposal, data fingerprint, actual coverage, policy, and warning before calculations begin. Failed runs retain the evidence; successful runs link to it. Demo workflow reset preserves confirmation records.
+- Backtest results, portfolio approval, and newly generated reports disclose the shorter sample. Optimization inherits the accepted window without shortening it. Financial risk controls and committee voting are unchanged.
+- Migration 0022 is additive and does not require a reset. Existing runs default to standard history mode.
+- Verification: 85 automated tests, workspace type checks, and production build passed. Local desktop/mobile acceptance used mocked API responses to check cancellation, explicit consent, refresh persistence, and import regression. No production database was reset or modified during verification; live deployment acceptance remains a separate step.
+
+Usage and limitations: [Historical Data Coverage](docs/historical-data-coverage.md).
+
 ## 2026-10-13: Historical coverage, listing validation, and weight-basis fixes
 
 - Detailed HTTP messages replace generic labels such as Conflict. Read-only preflight lists all security/benchmark failures and aligned sleeve coverage; backtest data failures use structured HTTP 422 responses.

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import {
   betaControl,
   drawdownControl,
@@ -12,6 +13,7 @@ import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
 import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { collectHistoricalSeries, historyReport, yahooSymbol, type PriceSeries } from "./market-history.js";
+import { commonHistoryWeeks, shortHistoryOption, SHORT_HISTORY_TECHNICAL_MINIMUM, SHORT_HISTORY_WARNING } from "./short-history.js";
 export { fetchEodhdWeeklySeries, fetchYahooSeries, weekKey, yahooSymbol, type PriceSeries, type PricePoint } from "./market-history.js";
 
 type SleeveKey = "us" | "developedNonUs" | "emerging";
@@ -164,7 +166,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
     const eodhdToken = await getActiveEodhdToken(user.organizationId);
     const collected = await collectHistoricalSeries(uniqueRequests, eodhdToken);
     const report = historyReport(collected, (["us", "developedNonUs", "emerging"] as SleeveKey[]).map(sleeve => ({ sleeve, symbols: [...holdingSymbols.filter(item => item.sleeve === sleeve).map(item => item.providerSymbol), ...sleeveBenchmarkSymbols[sleeve].filter(item => item.weight > 0).map(item => item.symbol)] })), user.locale === "zh-CN");
-    return { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries: collected.series, report: { ...report, proposedPortfolioVersion: Number(proposal.rows[0].version) } };
+    return { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries: collected.series, report: { ...report, proposedPortfolioVersion: Number(proposal.rows[0].version), shortHistory: shortHistoryOption(report, collected.series, proposal.rows[0].id, policy) } };
   }
   app.post("/api/workflows/:workflowId/backtest/preflight", async (request) => {
     const user = requirePasswordChanged(request);
@@ -190,75 +192,113 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
     const user = requirePasswordChanged(request);
     if (!hasPermission(user.role, "backtest:run")) throw forbidden();
     const { workflowId } = request.params as { workflowId: string };
+    const input = z.object({ shortHistoryConfirmation: z.object({
+      acknowledged: z.literal(true), proposedPortfolioVersionId: z.string().uuid(), coverageFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    }).optional() }).parse(request.body ?? {});
     const { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries, report } = await prepare(workflowId, user);
-    if (!report.ready) return reply.code(422).send({ error: "backtest_data_unready", message: report.issues.map(item => item.message).join(" "), report });
-    await saveObservations(allSeries);
-    const bySymbol = new Map(allSeries.map((item) => [item.symbol, item]));
-    const sleeveMetrics = [];
-    const reviewFlags: Array<{ sleeve: SleeveKey; control: string; reason: string }> = [];
-    for (const sleeve of ["us", "developedNonUs", "emerging"] as SleeveKey[]) {
-      const sleeveHoldings = holdingSymbols.filter((item) => item.sleeve === sleeve);
-      const securities = sleeveHoldings.map((item) => ({ data: bySymbol.get(item.providerSymbol)!, weight: Number(item.weight) }));
-      const benchmarks = sleeveBenchmarkSymbols[sleeve].filter(item => item.weight > 0).map((item) => ({ data: bySymbol.get(item.symbol)!, weight: item.weight }));
-      const commonWeeks = [...new Set(securities[0].data.points.map((point) => point.week))]
-        .filter((week) => [...securities, ...benchmarks].every((item) => item.data.points.some((point) => point.week === week)))
-        .sort();
-      if (commonWeeks.length < 100) throw invalidState(`${sleeve} has fewer than 100 aligned weekly observations`);
-      const portfolioReturns = weightedReturns(securities, commonWeeks);
-      const benchmarkReturns = weightedReturns(benchmarks, commonWeeks);
-      const actualReturn = annualizedReturn(portfolioReturns);
-      const actualDrawdown = maximumDrawdown(portfolioReturns);
-      const benchmarkDrawdown = maximumDrawdown(benchmarkReturns);
-      const actualBeta = calculateBeta(portfolioReturns, benchmarkReturns);
-      const target = targets.equityTargets.find((item) => item.key === sleeve);
-      const returnResult = returnControl(actualReturn, Number(target.targetReturn), policy);
-      const drawdownResult = drawdownControl(actualDrawdown, Number(target.maximumDrawdownLimit), benchmarkDrawdown, policy);
-      const betaResult = betaControl(actualBeta, target.capm as CapmTarget, returnResult.hardPass, drawdownResult.hardPass, policy);
-      if (returnResult.review) reviewFlags.push({ sleeve, control: "return", reason: "Return is materially above the target floor; review idiosyncratic-risk concentration." });
-      if (betaResult.review) reviewFlags.push({ sleeve, control: "beta", reason: "Beta is below the target range while return and drawdown pass; committee review is required." });
-      sleeveMetrics.push({
-        sleeve, observationCount: portfolioReturns.length, startDate: commonWeeks[0], endDate: commonWeeks.at(-1),
-        annualizedReturn: actualReturn, targetReturn: Number(target.targetReturn), returnControl: returnResult,
-        beta: actualBeta, targetBeta: Number(target.targetBeta), betaControlActive: Boolean(target.betaControlActive), betaControl: betaResult,
-        maximumDrawdown: actualDrawdown, maximumDrawdownLimit: Number(target.maximumDrawdownLimit), benchmarkDrawdown, drawdownControl: drawdownResult,
-        hardPass: returnResult.hardPass && drawdownResult.hardPass && betaResult.hardPass,
-      });
+    const consent = input.shortHistoryConfirmation;
+    if (consent && user.role !== "execution_team") throw forbidden("Only the execution team can confirm a short-history backtest");
+    if (!report.ready && (!consent || !report.shortHistory.eligible)) return reply.code(422).send({ error: "backtest_data_unready", message: report.issues.map(item => item.message).join(" "), report });
+    if (consent && (report.ready || consent.proposedPortfolioVersionId !== proposal.rows[0].id || consent.coverageFingerprint !== report.shortHistory.coverageFingerprint)) {
+      return reply.code(422).send({ error: "short_history_confirmation_stale", message: user.locale === "zh-CN" ? "组合、价格或参数已变化，请检查最新覆盖情况后重新确认。" : "Proposal, prices or policy changed. Review current coverage and confirm again.", report });
     }
-    const hardControlPass = sleeveMetrics.every((item) => item.hardPass);
-    const startDate = sleeveMetrics.map((item) => String(item.startDate)).sort().at(-1)!;
-    const endDate = sleeveMetrics.map((item) => String(item.endDate)).sort().at(0)!;
-    const client = await pool.connect();
+    const confirmedWeeks = consent ? commonHistoryWeeks(allSeries) : null;
+    let confirmation: Record<string, any> | null = null;
+    if (consent) {
+      // Commit consent independently: evidence must remain even if a later calculation fails.
+      const evidence = await pool.connect();
+      try {
+        await evidence.query("BEGIN");
+        const saved = await evidence.query(`INSERT INTO backtest_history_confirmations
+          (organization_id, workflow_case_id, proposed_portfolio_version_id, confirmed_by, coverage_fingerprint, warning_text, history_snapshot)
+          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, confirmed_at`,
+        [user.organizationId, workflowId, proposal.rows[0].id, user.id, consent.coverageFingerprint, SHORT_HISTORY_WARNING,
+          JSON.stringify({ proposalVersion: Number(proposal.rows[0].version), report, policy, usedWeeks: confirmedWeeks,
+            usedDataRanges: allSeries.map(series => { const points = series.points.filter(point => confirmedWeeks!.includes(point.week)); return { symbol: series.symbol, provider: series.sourceName, firstDate: points[0]?.date, lastDate: points.at(-1)?.date, observations: points.length }; }) })]);
+        confirmation = { id: saved.rows[0].id, confirmedAt: saved.rows[0].confirmed_at, confirmedById: user.id, confirmedByName: user.displayName,
+          proposalVersion: Number(proposal.rows[0].version), usedWeeks: confirmedWeeks, commonWeeks: confirmedWeeks!.length,
+          firstWeek: confirmedWeeks![0], lastWeek: confirmedWeeks!.at(-1), warning: SHORT_HISTORY_WARNING };
+        await writeAudit(evidence, { organizationId: user.organizationId, actorUserId: user.id, action: "backtest.short_history.confirm", entityType: "backtest_history_confirmation", entityId: saved.rows[0].id, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: confirmation });
+        await evidence.query("COMMIT");
+      } catch (error) { await evidence.query("ROLLBACK"); throw error; } finally { evidence.release(); }
+    }
     try {
-      await client.query("BEGIN");
-      const next = await client.query("SELECT COALESCE(max(run_number), 0)::int + 1 AS run_number FROM backtest_runs WHERE proposed_portfolio_version_id = $1", [proposal.rows[0].id]);
-      const saved = await client.query(
-        `INSERT INTO backtest_runs
-          (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
-           metrics, hard_control_pass, review_flags, model_version, run_by)
-         VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.1.0', $10) RETURNING *`,
-        [proposal.rows[0].id, next.rows[0].run_number, startDate, endDate,
-          JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: report.methodology }),
-          JSON.stringify({ provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",
-            primaryProviderStatus: eodhdToken ? (allSeries.every((item) => item.sourceName === "EODHD") ? "succeeded" : "partial_fallback") : "not_configured",
-            symbols: allSymbols, eodhdSymbols: uniqueRequests.map((item) => item.eodhdSymbol), retrievedAt: new Date().toISOString(),
-            persistedToMarketObservations: true, coverageReport: report,
-            sources: allSeries.map((item) => ({ symbol: item.symbol, provider: item.sourceName, url: item.sourceUrl, fallbackReason: item.fallbackReason ?? null })) }),
-          JSON.stringify({ sleeves: sleeveMetrics }), hardControlPass, JSON.stringify(reviewFlags), user.id],
-      );
-      await client.query("UPDATE proposed_portfolio_versions SET status = $1 WHERE id = $2", [hardControlPass ? "backtest_passed" : "backtest_failed", proposal.rows[0].id]);
-      await writeAudit(client, {
-        organizationId: user.organizationId, actorUserId: user.id, action: "backtest.run", entityType: "backtest_run",
-        entityId: saved.rows[0].id, outcome: "allowed", requestId: request.id, ipAddress: request.ip,
-        detail: { runNumber: saved.rows[0].run_number, hardControlPass,
-          source: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), startDate, endDate },
-      });
-      await client.query("COMMIT");
-      return reply.code(201).send({ backtestRun: saved.rows[0] });
+      await saveObservations(allSeries);
+      const bySymbol = new Map(allSeries.map((item) => [item.symbol, item]));
+      const sleeveMetrics = [];
+      const reviewFlags: Array<{ sleeve: SleeveKey; control: string; reason: string }> = [];
+      for (const sleeve of ["us", "developedNonUs", "emerging"] as SleeveKey[]) {
+        const sleeveHoldings = holdingSymbols.filter((item) => item.sleeve === sleeve);
+        const securities = sleeveHoldings.map((item) => ({ data: bySymbol.get(item.providerSymbol)!, weight: Number(item.weight) }));
+        const benchmarks = sleeveBenchmarkSymbols[sleeve].filter(item => item.weight > 0).map((item) => ({ data: bySymbol.get(item.symbol)!, weight: item.weight }));
+        const commonWeeks = confirmedWeeks ?? [...new Set(securities[0].data.points.map((point) => point.week))]
+          .filter((week) => [...securities, ...benchmarks].every((item) => item.data.points.some((point) => point.week === week)))
+          .sort();
+        if (commonWeeks.length < (confirmation ? SHORT_HISTORY_TECHNICAL_MINIMUM : 100)) throw invalidState(`${sleeve} has insufficient aligned weekly observations`);
+        if (confirmation) reviewFlags.push({ sleeve, control: "short_history", reason: SHORT_HISTORY_WARNING });
+        const portfolioReturns = weightedReturns(securities, commonWeeks);
+        const benchmarkReturns = weightedReturns(benchmarks, commonWeeks);
+        const actualReturn = annualizedReturn(portfolioReturns);
+        const actualDrawdown = maximumDrawdown(portfolioReturns);
+        const benchmarkDrawdown = maximumDrawdown(benchmarkReturns);
+        const actualBeta = calculateBeta(portfolioReturns, benchmarkReturns);
+        const target = targets.equityTargets.find((item) => item.key === sleeve);
+        const returnResult = returnControl(actualReturn, Number(target.targetReturn), policy);
+        const drawdownResult = drawdownControl(actualDrawdown, Number(target.maximumDrawdownLimit), benchmarkDrawdown, policy);
+        const betaResult = betaControl(actualBeta, target.capm as CapmTarget, returnResult.hardPass, drawdownResult.hardPass, policy);
+        if (returnResult.review) reviewFlags.push({ sleeve, control: "return", reason: "Return is materially above the target floor; review idiosyncratic-risk concentration." });
+        if (betaResult.review) reviewFlags.push({ sleeve, control: "beta", reason: "Beta is below the target range while return and drawdown pass; committee review is required." });
+        sleeveMetrics.push({
+          sleeve, observationCount: portfolioReturns.length, startDate: commonWeeks[0], endDate: commonWeeks.at(-1),
+          annualizedReturn: actualReturn, targetReturn: Number(target.targetReturn), returnControl: returnResult,
+          beta: actualBeta, targetBeta: Number(target.targetBeta), betaControlActive: Boolean(target.betaControlActive), betaControl: betaResult,
+          maximumDrawdown: actualDrawdown, maximumDrawdownLimit: Number(target.maximumDrawdownLimit), benchmarkDrawdown, drawdownControl: drawdownResult,
+          hardPass: returnResult.hardPass && drawdownResult.hardPass && betaResult.hardPass,
+        });
+      }
+      const hardControlPass = sleeveMetrics.every((item) => item.hardPass);
+      const startDate = sleeveMetrics.map((item) => String(item.startDate)).sort().at(-1)!;
+      const endDate = sleeveMetrics.map((item) => String(item.endDate)).sort().at(0)!;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query("SELECT id, current_step FROM workflow_cases WHERE id = $1 AND organization_id = $2 AND status = 'active' FOR UPDATE", [workflowId, user.organizationId]);
+        const latestProposal = await client.query("SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1", [workflowId]);
+        if (!locked.rows[0] || locked.rows[0].current_step !== "backtest" || latestProposal.rows[0]?.id !== proposal.rows[0].id) throw invalidState("Workflow or proposal changed while backtesting; run again for the current version");
+        const next = await client.query("SELECT COALESCE(max(run_number), 0)::int + 1 AS run_number FROM backtest_runs WHERE proposed_portfolio_version_id = $1", [proposal.rows[0].id]);
+        const saved = await client.query(
+          `INSERT INTO backtest_runs
+            (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
+             metrics, hard_control_pass, review_flags, model_version, run_by, history_mode, short_history_confirmation_id)
+           VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.2.0', $10, $11, $12) RETURNING *`,
+          [proposal.rows[0].id, next.rows[0].run_number, startDate, endDate,
+            JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: report.methodology }),
+            JSON.stringify({ provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",
+              primaryProviderStatus: eodhdToken ? (allSeries.every((item) => item.sourceName === "EODHD") ? "succeeded" : "partial_fallback") : "not_configured",
+              symbols: allSymbols, eodhdSymbols: uniqueRequests.map((item) => item.eodhdSymbol), retrievedAt: new Date().toISOString(),
+              persistedToMarketObservations: true, coverageReport: { ...report, shortHistory: { ...report.shortHistory, accepted: Boolean(confirmation) } }, shortHistoryConfirmation: confirmation,
+              sources: allSeries.map((item) => ({ symbol: item.symbol, provider: item.sourceName, url: item.sourceUrl, fallbackReason: item.fallbackReason ?? null })) }),
+            JSON.stringify({ sleeves: sleeveMetrics }), hardControlPass, JSON.stringify(reviewFlags), user.id, confirmation ? "confirmed_short_history" : "standard", confirmation?.id ?? null],
+        );
+        await client.query("UPDATE proposed_portfolio_versions SET status = $1 WHERE id = $2", [hardControlPass ? "backtest_passed" : "backtest_failed", proposal.rows[0].id]);
+        await writeAudit(client, {
+          organizationId: user.organizationId, actorUserId: user.id, action: "backtest.run", entityType: "backtest_run",
+          entityId: saved.rows[0].id, outcome: "allowed", requestId: request.id, ipAddress: request.ip,
+          detail: { runNumber: saved.rows[0].run_number, hardControlPass,
+            source: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), startDate, endDate, shortHistoryConfirmationId: confirmation?.id ?? null },
+        });
+        await client.query("COMMIT");
+        return reply.code(201).send({ backtestRun: saved.rows[0] });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+      if (!confirmation) throw error;
+      request.log.error({ err: error, shortHistoryConfirmationId: confirmation.id }, "Confirmed short-history backtest failed");
+      return reply.code((error as { statusCode?: number }).statusCode ?? 500).send({ error: "confirmed_backtest_failed", message: user.locale === "zh-CN" ? `确认已记录（${confirmation.id}），但回测未完成。${(error as { statusCode?: number }).statusCode === 409 ? (error as Error).message : "请查看服务器日志。"}` : `Confirmation recorded (${confirmation.id}), but backtest failed. ${(error as { statusCode?: number }).statusCode === 409 ? (error as Error).message : "Check server logs."}`, shortHistoryConfirmationId: confirmation.id, report });
     }
   });
 }

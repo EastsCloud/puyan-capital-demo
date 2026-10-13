@@ -35,6 +35,8 @@ Validation date: 2026-08-07
 
 ## Integrity
 
+The 2026-10-13 available-history update passed 85 automated tests, TypeScript checks, and production builds. Database tests apply all 22 migrations and verify immutable confirmation evidence. Local headless-browser acceptance checks explicit cancellation/confirmation and refreshed short-history notices on desktop/mobile; mocked browser responses do not establish production financial-model acceptance.
+
 - `MANIFEST.sha256` records the intended package files and hashes.
 - Local databases, dependencies, and generated build artifacts are excluded from the public release manifest.
 - Packaged archives are checked after creation and extraction.

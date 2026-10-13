@@ -169,6 +169,8 @@ async function workflowContext(client: DatabaseClient, workflowId: string, organ
 }
 
 async function buildReportData(client: DatabaseClient, workflow: any, nav: any) {
+  const approvedBacktest = await client.query(`SELECT b.data_manifest FROM backtest_runs b JOIN proposed_portfolio_versions p ON p.id = b.proposed_portfolio_version_id WHERE p.workflow_case_id = $1 AND p.status = 'approved' AND b.hard_control_pass = true ORDER BY p.version DESC, b.run_at DESC LIMIT 1`, [workflow.id]);
+  const shortHistoryConfirmation = jsonValue<any>(approvedBacktest.rows[0]?.data_manifest ?? {}).shortHistoryConfirmation ?? null;
   const [curveResult, sleeveResult, annualResult, targetResult, sleeveTargetResult] = await Promise.all([
     client.query(`SELECT business_date, market_value FROM equity_value_observations WHERE portfolio_id = $1 AND business_date <= $2 ORDER BY business_date`, [workflow.portfolio_id, nav.as_of_date]),
     client.query(
@@ -279,7 +281,7 @@ async function buildReportData(client: DatabaseClient, workflow: any, nav: any) 
     externalCashFlows, netExternalFlow, returnMethod: externalCashFlows.length ? "modified_dietz" : "simple",
     equityCurve: curve, sleeveMetrics, assetClassContributions,
     attribution,
-    dataQuality: { equityObservationCount: curve.length, sleeveMetricsAvailable: curve.length >= 20, nonEquityNavApproved: true, benchmarkAttributionAvailable: attribution.pureSelectionAvailable },
+    dataQuality: { equityObservationCount: curve.length, sleeveMetricsAvailable: curve.length >= 20, nonEquityNavApproved: true, benchmarkAttributionAvailable: attribution.pureSelectionAvailable, shortHistoryConfirmation },
   };
 }
 
@@ -425,7 +427,7 @@ export async function registerReportingRoutes(app: FastifyInstance): Promise<voi
           `Equity implementation including market: ${pct(data.attribution.selectionEffect)}`,
           "Pure security-selection attribution: unavailable",
         ];
-    const pdf = simplePdf(["Puyan Capital - Isater Investment Report", `Report version: ${result.rows[0].version}`, `As of: ${data.asOfDate}`, `Initial principal: ${data.currency} ${data.principal.toFixed(2)}`, `Net asset value: ${data.currency} ${data.totalNav.toFixed(2)}`, `Total return: ${pct(data.totalReturn)}`, `Target return: ${pct(data.targetReturn)}`, ...attributionLines, `Total contribution: ${pct(data.attribution.totalContribution)}`, "Generated from approved Isater records."]);
+    const pdf = simplePdf(["Puyan Capital - Isater Investment Report", `Report version: ${result.rows[0].version}`, `As of: ${data.asOfDate}`, `Initial principal: ${data.currency} ${data.principal.toFixed(2)}`, `Net asset value: ${data.currency} ${data.totalNav.toFixed(2)}`, `Total return: ${pct(data.totalReturn)}`, `Target return: ${pct(data.targetReturn)}`, ...attributionLines, `Total contribution: ${pct(data.attribution.totalContribution)}`, ...(data.dataQuality.shortHistoryConfirmation ? [`Backtest: confirmed short history (${data.dataQuality.shortHistoryConfirmation.commonWeeks} weekly prices).`, `Window: ${data.dataQuality.shortHistoryConfirmation.firstWeek} - ${data.dataQuality.shortHistoryConfirmation.lastWeek}`, "Short sample: estimates may be unstable; not a full three-year validation.", `Confirmation ID: ${data.dataQuality.shortHistoryConfirmation.id}`] : []), "Generated from approved Isater records."]);
     return reply.header("Content-Type", "application/pdf").header("Content-Disposition", `attachment; filename=Isater-report-v${result.rows[0].version}.pdf`).send(pdf);
   });
 }

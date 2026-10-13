@@ -15,6 +15,7 @@ import {
 import { pool } from "./db.js";
 import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { chooseCachedSeries, collectHistoricalSeries } from "./market-history.js";
+import { optimizationHistoryWeeks, SHORT_HISTORY_TECHNICAL_MINIMUM } from "./short-history.js";
 
 type SleeveKey = "us" | "developedNonUs" | "emerging";
 
@@ -63,7 +64,7 @@ async function effectiveParameters(organizationId: string): Promise<Record<strin
   return jsonValue(defaults.rows[0].parameters);
 }
 
-async function storedSeries(symbol: string): Promise<PriceSeries> {
+async function storedSeries(symbol: string, minimumWeeks = 100): Promise<PriceSeries> {
   const rows = await pool.query(
     `SELECT observation_date, value, currency, source_url, source_name
        FROM market_observations
@@ -71,7 +72,7 @@ async function storedSeries(symbol: string): Promise<PriceSeries> {
         AND observation_date >= CURRENT_DATE - INTERVAL '3 years 14 days'
       ORDER BY observation_date, retrieved_at DESC`, [symbol],
   );
-  const series = chooseCachedSeries(symbol, rows.rows);
+  const series = chooseCachedSeries(symbol, rows.rows, new Date(), minimumWeeks);
   if (!series) throw invalidState(`Stored history for ${symbol} is insufficient; rerun backtest data retrieval`);
   return series;
 }
@@ -166,6 +167,11 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
         WHERE p.workflow_case_id = $1 ORDER BY b.run_at DESC LIMIT 1`, [workflowId],
     );
     if (!prior.rows[0] || prior.rows[0].hard_control_pass) throw invalidState("A failed backtest is required for optimization");
+    const confirmedShort = prior.rows[0].history_mode === "confirmed_short_history";
+    const priorData = jsonValue<Record<string, any>>(prior.rows[0].data_manifest);
+    const confirmedWeeks: string[] | null = confirmedShort ? priorData.shortHistoryConfirmation?.usedWeeks ?? null : null;
+    if (confirmedShort && (!prior.rows[0].short_history_confirmation_id || !confirmedWeeks || confirmedWeeks.length < SHORT_HISTORY_TECHNICAL_MINIMUM)) throw invalidState("Short-history confirmation is missing; rerun backtest with explicit confirmation");
+    const minimumWeeks = confirmedShort ? SHORT_HISTORY_TECHNICAL_MINIMUM : 100;
     const priorMetrics = jsonValue<{ sleeves: Array<{ sleeve: SleeveKey; hardPass: boolean }> }>(prior.rows[0].metrics);
     const failedSleeves = priorMetrics.sleeves.filter((item) => !item.hardPass).map((item) => item.sleeve);
     const proposalId = prior.rows[0].proposed_portfolio_version_id;
@@ -199,7 +205,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const retrieveSeries = async (symbol: string, providerSymbol: string, market?: string) => {
       const result = await collectHistoricalSeries([{ symbol, eodhdSymbol: providerSymbol, market }], eodhdToken);
       const coverage = result.coverage[0];
-      if (coverage.status !== "ready") throw invalidState(`${symbol}: ${coverage.observations} complete weekly observations; at least 100 required. ${coverage.reason ?? ""}`);
+      if (coverage.status === "unavailable" || coverage.observations < minimumWeeks) throw invalidState(`${symbol}: ${coverage.observations} complete weekly observations; at least ${minimumWeeks} required. ${coverage.reason ?? ""}`);
       await saveObservations(result.series);
       return result.series[0];
     };
@@ -210,7 +216,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       if (cached) return cached;
       const requested = (async () => {
         try {
-          return await storedSeries(symbol);
+          return await storedSeries(symbol, minimumWeeks);
         } catch {
           return retrieveSeries(symbol, eodhdSymbol(holding.ticker, holding.market), holding.market);
         }
@@ -225,16 +231,16 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       const activeBenchmarks = priorBenchmarkManifest.sleeves[sleeve].filter(item => Number(item.weight) > 0);
       const indexSymbols: Record<string, string> = { "^GSPC": "GSPC.INDX", "^N225": "N225.INDX", "000001.SS": "000001.SHG", "^HSI": "HSI.INDX" };
       const benchmarkSeries = await Promise.all(activeBenchmarks.map(async item => {
-        try { return await storedSeries(item.symbol); }
+        try { return await storedSeries(item.symbol, minimumWeeks); }
         catch { return retrieveSeries(item.symbol, indexSymbols[item.symbol] ?? item.symbol); }
       }));
       const benchmarkWeights = activeBenchmarks.map(item => Number(item.weight));
       const target = targets.equityTargets.find((item) => item.key === sleeve);
       const evaluate = async (candidateHoldings: OptimizerHolding[], replacements: number): Promise<FeasibleSolution[]> => {
         const securitySeries = await Promise.all(candidateHoldings.map(priceSeries));
-        const commonWeeks = securitySeries[0].points.map((point) => point.week)
-          .filter((week) => [...securitySeries, ...benchmarkSeries].every((series) => series.points.some((point) => point.week === week))).sort();
-        if (commonWeeks.length < 100) return [];
+        const commonWeeks = optimizationHistoryWeeks([...securitySeries, ...benchmarkSeries], confirmedWeeks);
+        // A replacement must cover the entire explicitly accepted window, never shorten it again.
+        if (commonWeeks.length < minimumWeeks || (confirmedWeeks && commonWeeks.length !== confirmedWeeks.length)) return [];
         const benchmarkReturns = weightedReturns(benchmarkSeries.map((data, index) => ({ data, weight: benchmarkWeights[index] })), commonWeeks);
         const benchmarkDrawdown = maximumDrawdown(benchmarkReturns);
         const feasible: FeasibleSolution[] = [];
@@ -447,11 +453,11 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       await client.query(
         `INSERT INTO backtest_runs
           (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
-           metrics, hard_control_pass, review_flags, model_version, run_by)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, true, $8, 'isater-optimizer-validation-1.1.0', $9)`,
+           metrics, hard_control_pass, review_flags, model_version, run_by, history_mode, short_history_confirmation_id)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, true, $8, 'isater-optimizer-validation-1.2.0', $9, $10, $11)`,
         [proposal.rows[0].id, priorBacktest.rows[0].start_date, priorBacktest.rows[0].end_date, priorBacktest.rows[0].frequency,
           priorBacktest.rows[0].benchmark_manifest, optimizedDataManifest, optimizedMetrics,
-          priorBacktest.rows[0].review_flags, user.id],
+          priorBacktest.rows[0].review_flags, user.id, priorBacktest.rows[0].history_mode ?? "standard", priorBacktest.rows[0].short_history_confirmation_id ?? null],
       );
       await client.query("UPDATE optimization_runs SET selected_candidate_key = $1, selected_by = $2, selected_at = now() WHERE id = $3", [candidate.key, user.id, runId]);
       await writeAudit(client, {

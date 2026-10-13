@@ -17,6 +17,7 @@ Live demo: [demo.puyancapital.com](https://demo.puyancapital.com)
 - Import preview, row selection, security lookup, exchange normalization, and plan-versus-fill reconciliation
 - Saved-versus-draft proposed portfolios, replace/merge imports, explicit confirmation, and organization-scoped security registration
 - Explicit CSV weight basis, live security/venue checks, and all-security historical-price preflight diagnostics
+- Per-run execution confirmation for short real-price history, immutable database evidence, and downstream disclosures
 - Effective-dated parameters, versioned reports, performance attribution, delivery records, and import registry
 - Responsive Chinese/English interface for desktop and mobile browsers
 
@@ -40,7 +41,7 @@ docs/                Product, architecture, workflow, and verification documents
 See [Architecture](docs/architecture.md) and [Business Flow and Calculation Logic](docs/business-flow-and-logic.md) for more detail.
 
 See [Proposed Portfolio Import](docs/proposed-portfolio-import.md) for the saved-data, preview, draft, submission, and missing-security workflow.
-See [Historical Data Coverage](docs/historical-data-coverage.md) for provider selection, completed-week alignment, and the unchanged short-history gate.
+See [Historical Data Coverage](docs/historical-data-coverage.md) for provider selection, completed-week alignment, the standard history gate, and explicit short-history exceptions.
 
 ## Local setup
 

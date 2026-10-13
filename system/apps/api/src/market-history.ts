@@ -93,13 +93,13 @@ export function safeHistoryReason(error: unknown, token?: string | null): string
   if (token) text = text.split(token).join('[redacted]');
   return text.replace(/api_token=[^&\s]+/gi, 'api_token=[redacted]').slice(0, 1000);
 }
-export function chooseCachedSeries(symbol: string, rows: Array<{ observation_date: string | Date; value: number | string; source_name: string; source_url?: string; currency?: string }>, asOf = new Date()): PriceSeries | null {
+export function chooseCachedSeries(symbol: string, rows: Array<{ observation_date: string | Date; value: number | string; source_name: string; source_url?: string; currency?: string }>, asOf = new Date(), minimumWeeks = MIN_BACKTEST_WEEKS): PriceSeries | null {
   // A cache may contain overlapping providers. Never count two prices in one
   // week twice, or splice providers into an apparently complete series.
   for (const provider of ['EODHD', 'Yahoo Finance chart'] as const) {
     const selected = rows.filter(row => row.source_name === provider);
     const points = weeklyCloses(selected.map(row => ({ date: row.observation_date instanceof Date ? row.observation_date.toISOString().slice(0, 10) : String(row.observation_date).slice(0, 10), value: Number(row.value) })), asOf);
-    if (points.length >= MIN_BACKTEST_WEEKS) return { symbol, points, sourceName: provider, sourceUrl: selected[0].source_url ?? '', currency: selected[0].currency ?? '', exchange: '' };
+    if (points.length >= minimumWeeks) return { symbol, points, sourceName: provider, sourceUrl: selected[0].source_url ?? '', currency: selected[0].currency ?? '', exchange: '' };
   }
   return null;
 }
