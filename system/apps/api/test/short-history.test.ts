@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commonHistoryWeeks, optimizationHistoryWeeks, shortHistoryOption } from '../src/short-history.js';
+import { businessFingerprint, commonHistoryWeeks, optimizationHistoryWeeks, shortHistoryOption } from '../src/short-history.js';
 import { chooseCachedSeries, historyReport, type PriceSeries } from '../src/market-history.js';
 
 const series = (symbol: string, weeks: string[]): PriceSeries => ({ symbol, sourceName:'EODHD', sourceUrl:'https://example.com', currency:'USD', exchange:'US', points:weeks.map((week,index)=>({date:week,week,value:100+index})) });
@@ -30,5 +30,11 @@ describe('explicit short-history window', () => {
     const rows=a.points.map(point=>({observation_date:point.date,value:point.value,source_name:'EODHD'}));
     expect(chooseCachedSeries('A',rows,new Date('2026-10-13'))).toBeNull();
     expect(chooseCachedSeries('A',rows,new Date('2026-10-13'),3)?.points).toHaveLength(4);
+  });
+  it('compares business inputs independently of object ordering and irrelevant proposal status',()=>{
+    const context={proposal:{rows:[{id:'p',version:1,status:'submitted'}]},targets:{b:2,a:1},policy:{months:36},sleeveBenchmarkSymbols:{us:[{symbol:'S',weight:1}]},holdingSymbols:[{ticker:'A',market:'US',weight:'0.5',style:'growth'},{ticker:'B',market:'US',weight:'0.5',style:'value'}]};
+    const hash=businessFingerprint(context);
+    expect(businessFingerprint({...context,proposal:{rows:[{id:'p',version:1,status:'backtest_failed'}]},targets:{a:1,b:2},holdingSymbols:[...context.holdingSymbols].reverse()})).toBe(hash);
+    expect(businessFingerprint({...context,targets:{a:1,b:3}})).not.toBe(hash);expect(businessFingerprint({...context,policy:{months:24}})).not.toBe(hash);
   });
 });

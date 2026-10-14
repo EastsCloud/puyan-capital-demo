@@ -10,10 +10,10 @@ import {
 } from "@isater/domain";
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
-import { pool } from "./db.js";
+import { pool, type DatabaseClient } from "./db.js";
 import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { collectHistoricalSeries, historyReport, yahooSymbol, type PriceSeries } from "./market-history.js";
-import { commonHistoryWeeks, shortHistoryOption, SHORT_HISTORY_TECHNICAL_MINIMUM, SHORT_HISTORY_WARNING } from "./short-history.js";
+import { businessFingerprint, commonHistoryWeeks, shortHistoryOption, SHORT_HISTORY_TECHNICAL_MINIMUM, SHORT_HISTORY_WARNING } from "./short-history.js";
 export { fetchEodhdWeeklySeries, fetchYahooSeries, weekKey, yahooSymbol, type PriceSeries, type PricePoint } from "./market-history.js";
 
 type SleeveKey = "us" | "developedNonUs" | "emerging";
@@ -112,9 +112,9 @@ export async function saveObservations(series: PriceSeries[]): Promise<void> {
   }
 }
 
-async function backtestParameters(organizationId: string): Promise<BacktestTolerance & { months: number; frequency: string }> {
-  const effective = await pool.query("SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1", [organizationId]);
-  const defaults = effective.rows[0] ? null : await pool.query("SELECT parameters FROM default_business_parameters ORDER BY version DESC LIMIT 1");
+async function backtestParameters(organizationId: string, db: Pick<DatabaseClient, "query"> = pool): Promise<BacktestTolerance & { months: number; frequency: string }> {
+  const effective = await db.query("SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1", [organizationId]);
+  const defaults = effective.rows[0] ? null : await db.query("SELECT parameters FROM default_business_parameters ORDER BY version DESC LIMIT 1");
   const parameters = jsonValue<Record<string, any>>((effective.rows[0] ?? defaults!.rows[0]).parameters);
   const policy = parameters.backtest ?? {};
   return {
@@ -128,10 +128,10 @@ async function backtestParameters(organizationId: string): Promise<BacktestToler
 }
 
 export async function registerBacktestRoutes(app: FastifyInstance): Promise<void> {
-  async function prepare(workflowId: string, user: { organizationId: string; locale?: string }) {
-    const workflow = await pool.query("SELECT * FROM workflow_cases WHERE id = $1 AND organization_id = $2 AND status = 'active'", [workflowId, user.organizationId]);
+  async function loadContext(workflowId: string, user: { organizationId: string; locale?: string }, db: Pick<DatabaseClient, "query"> = pool) {
+    const workflow = await db.query("SELECT * FROM workflow_cases WHERE id = $1 AND organization_id = $2 AND status = 'active'", [workflowId, user.organizationId]);
     if (!workflow.rows[0] || workflow.rows[0].current_step !== "backtest") throw invalidState("Backtest is not the current workflow step");
-    const proposal = await pool.query(
+    const proposal = await db.query(
       `SELECT p.*, s.targets, a.recommendation
          FROM proposed_portfolio_versions p
          JOIN sleeve_target_versions s ON s.id = p.sleeve_target_version_id
@@ -140,11 +140,11 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
         WHERE p.workflow_case_id = $1 ORDER BY p.version DESC LIMIT 1`, [workflowId],
     );
     if (!proposal.rows[0]) throw invalidState("Submitted proposed portfolio not found");
-    const holdings = await pool.query("SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id = $1 ORDER BY sleeve, style, ticker", [proposal.rows[0].id]);
+    const holdings = await db.query("SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id = $1 ORDER BY sleeve, style, ticker", [proposal.rows[0].id]);
     const targets = jsonValue<{ equityTargets: Array<any> }>(proposal.rows[0].targets);
     const recommendation = jsonValue<{ marketWeights: { chinaA: number; hongKong: number } }>(proposal.rows[0].recommendation);
     if (!Number.isFinite(recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong) || recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong <= 0) throw invalidState("Emerging-market benchmark weights are missing or invalid");
-    const policy = await backtestParameters(user.organizationId);
+    const policy = await backtestParameters(user.organizationId, db);
     const sleeveBenchmarkSymbols: Record<SleeveKey, Array<{ symbol: string; eodhdSymbol: string; weight: number }>> = {
       us: [{ symbol: "^GSPC", eodhdSymbol: "GSPC.INDX", weight: 1 }],
       developedNonUs: [{ symbol: "^N225", eodhdSymbol: "N225.INDX", weight: 1 }],
@@ -163,16 +163,30 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
       ...Object.values(sleeveBenchmarkSymbols).flat().filter(item => item.weight > 0).map((item) => ({ symbol: item.symbol, eodhdSymbol: item.eodhdSymbol }))];
     const uniqueRequests = [...new Map(requests.map((item) => [item.symbol, item])).values()];
     const allSymbols = uniqueRequests.map((item) => item.symbol);
+    return { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols };
+  }
+  async function prepare(context: Awaited<ReturnType<typeof loadContext>>, user: { organizationId: string; locale?: string }) {
+    const { proposal, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests } = context;
     const eodhdToken = await getActiveEodhdToken(user.organizationId);
     const collected = await collectHistoricalSeries(uniqueRequests, eodhdToken);
     const report = historyReport(collected, (["us", "developedNonUs", "emerging"] as SleeveKey[]).map(sleeve => ({ sleeve, symbols: [...holdingSymbols.filter(item => item.sleeve === sleeve).map(item => item.providerSymbol), ...sleeveBenchmarkSymbols[sleeve].filter(item => item.weight > 0).map(item => item.symbol)] })), user.locale === "zh-CN");
-    return { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries: collected.series, report: { ...report, proposedPortfolioVersion: Number(proposal.rows[0].version), shortHistory: shortHistoryOption(report, collected.series, proposal.rows[0].id, policy) } };
+    return { ...context, eodhdConfigured: Boolean(eodhdToken), allSeries: collected.series, report: { ...report, proposedPortfolioVersion: Number(proposal.rows[0].version), shortHistory: shortHistoryOption(report, collected.series, proposal.rows[0].id, policy) } };
+  }
+  async function snapshotReport(prepared: Awaited<ReturnType<typeof prepare>>, workflowId: string, user: { id: string; organizationId: string }) {
+    if (!prepared.report.shortHistory.eligible) return prepared.report;
+    await pool.query("DELETE FROM backtest_data_snapshots WHERE organization_id = $1 AND expires_at <= now()", [user.organizationId]);
+    const saved = await pool.query(`INSERT INTO backtest_data_snapshots
+      (organization_id,workflow_case_id,proposed_portfolio_version_id,created_by,business_fingerprint,coverage_fingerprint,snapshot_payload)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, expires_at`,
+    [user.organizationId, workflowId, prepared.proposal.rows[0].id, user.id, businessFingerprint(prepared), prepared.report.shortHistory.coverageFingerprint,
+      JSON.stringify({ allSeries: prepared.allSeries, report: prepared.report, eodhdConfigured: prepared.eodhdConfigured })]);
+    return { ...prepared.report, shortHistory: { ...prepared.report.shortHistory, snapshotId: String(saved.rows[0].id), expiresAt: new Date(saved.rows[0].expires_at).toISOString() } };
   }
   app.post("/api/workflows/:workflowId/backtest/preflight", async (request) => {
     const user = requirePasswordChanged(request);
     if (!hasPermission(user.role, "backtest:run")) throw forbidden();
     const { workflowId } = request.params as { workflowId: string };
-    return { report: (await prepare(workflowId, user)).report };
+    return { report: await snapshotReport(await prepare(await loadContext(workflowId, user), user), workflowId, user) };
   });
 
   app.get("/api/workflows/:workflowId/backtest/context", async (request) => {
@@ -193,15 +207,27 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
     if (!hasPermission(user.role, "backtest:run")) throw forbidden();
     const { workflowId } = request.params as { workflowId: string };
     const input = z.object({ shortHistoryConfirmation: z.object({
-      acknowledged: z.literal(true), proposedPortfolioVersionId: z.string().uuid(), coverageFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      acknowledged: z.literal(true), proposedPortfolioVersionId: z.string().uuid(), coverageFingerprint: z.string().regex(/^[a-f0-9]{64}$/), snapshotId: z.string().uuid().optional(),
     }).optional() }).parse(request.body ?? {});
-    const { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdToken, allSeries, report } = await prepare(workflowId, user);
     const consent = input.shortHistoryConfirmation;
     if (consent && user.role !== "execution_team") throw forbidden("Only the execution team can confirm a short-history backtest");
-    if (!report.ready && (!consent || !report.shortHistory.eligible)) return reply.code(422).send({ error: "backtest_data_unready", message: report.issues.map(item => item.message).join(" "), report });
-    if (consent && (report.ready || consent.proposedPortfolioVersionId !== proposal.rows[0].id || consent.coverageFingerprint !== report.shortHistory.coverageFingerprint)) {
-      return reply.code(422).send({ error: "short_history_confirmation_stale", message: user.locale === "zh-CN" ? "组合、价格或参数已变化，请检查最新覆盖情况后重新确认。" : "Proposal, prices or policy changed. Review current coverage and confirm again.", report });
+    const context = await loadContext(workflowId, user);
+    let prepared: Awaited<ReturnType<typeof prepare>>;
+    if (consent) {
+      const snapshot = consent.snapshotId ? await pool.query(`SELECT * FROM backtest_data_snapshots WHERE id=$1 AND organization_id=$2 AND workflow_case_id=$3 AND created_by=$4 AND expires_at > now()`, [consent.snapshotId,user.organizationId,workflowId,user.id]) : { rows: [] };
+      const stored = snapshot.rows[0];
+      if (!stored) return reply.code(422).send({ error: "backtest_snapshot_expired", message: user.locale === "zh-CN" ? "价格快照不存在或已过期，请重新点击“检查全部价格覆盖”后确认（快照保留30分钟）。" : "Price snapshot missing or expired. Check all price coverage again and confirm within 30 minutes." });
+      if (stored.proposed_portfolio_version_id !== context.proposal.rows[0].id || consent.proposedPortfolioVersionId !== context.proposal.rows[0].id || stored.business_fingerprint !== businessFingerprint(context) || stored.coverage_fingerprint !== consent.coverageFingerprint) {
+        return reply.code(422).send({ error: "short_history_confirmation_stale", message: user.locale === "zh-CN" ? "组合或参数已变化，请重新检查价格覆盖后确认。" : "Proposal or policy changed. Check price coverage again before confirming." });
+      }
+      const payload = jsonValue<Pick<Awaited<ReturnType<typeof prepare>>, "allSeries" | "report" | "eodhdConfigured">>(stored.snapshot_payload);
+      prepared = { ...context, ...payload, report: { ...payload.report, shortHistory: { ...payload.report.shortHistory, snapshotId: String(stored.id), expiresAt: new Date(stored.expires_at).toISOString() } } };
+    } else {
+      prepared = await prepare(context, user);
     }
+    const { proposal, targets, policy, sleeveBenchmarkSymbols, holdingSymbols, uniqueRequests, allSymbols, eodhdConfigured, allSeries } = prepared;
+    const report = !consent && !prepared.report.ready ? await snapshotReport(prepared, workflowId, user) : prepared.report;
+    if (!report.ready && (!consent || !report.shortHistory.eligible)) return reply.code(422).send({ error: "backtest_data_unready", message: report.issues.map(item => item.message).join(" "), report });
     const confirmedWeeks = consent ? commonHistoryWeeks(allSeries) : null;
     let confirmation: Record<string, any> | null = null;
     if (consent) {
@@ -210,14 +236,15 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
       try {
         await evidence.query("BEGIN");
         const saved = await evidence.query(`INSERT INTO backtest_history_confirmations
-          (organization_id, workflow_case_id, proposed_portfolio_version_id, confirmed_by, coverage_fingerprint, warning_text, history_snapshot)
-          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, confirmed_at`,
+          (organization_id, workflow_case_id, proposed_portfolio_version_id, confirmed_by, coverage_fingerprint, warning_text, history_snapshot, data_snapshot_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, confirmed_at`,
         [user.organizationId, workflowId, proposal.rows[0].id, user.id, consent.coverageFingerprint, SHORT_HISTORY_WARNING,
           JSON.stringify({ proposalVersion: Number(proposal.rows[0].version), report, policy, usedWeeks: confirmedWeeks,
-            usedDataRanges: allSeries.map(series => { const points = series.points.filter(point => confirmedWeeks!.includes(point.week)); return { symbol: series.symbol, provider: series.sourceName, firstDate: points[0]?.date, lastDate: points.at(-1)?.date, observations: points.length }; }) })]);
+            prices: allSeries, dataSnapshotId: consent.snapshotId,
+            usedDataRanges: allSeries.map(series => { const points = series.points.filter(point => confirmedWeeks!.includes(point.week)); return { symbol: series.symbol, provider: series.sourceName, firstDate: points[0]?.date, lastDate: points.at(-1)?.date, observations: points.length }; }) }), consent.snapshotId]);
         confirmation = { id: saved.rows[0].id, confirmedAt: saved.rows[0].confirmed_at, confirmedById: user.id, confirmedByName: user.displayName,
           proposalVersion: Number(proposal.rows[0].version), usedWeeks: confirmedWeeks, commonWeeks: confirmedWeeks!.length,
-          firstWeek: confirmedWeeks![0], lastWeek: confirmedWeeks!.at(-1), warning: SHORT_HISTORY_WARNING };
+          firstWeek: confirmedWeeks![0], lastWeek: confirmedWeeks!.at(-1), dataSnapshotId: consent.snapshotId, warning: SHORT_HISTORY_WARNING };
         await writeAudit(evidence, { organizationId: user.organizationId, actorUserId: user.id, action: "backtest.short_history.confirm", entityType: "backtest_history_confirmation", entityId: saved.rows[0].id, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: confirmation });
         await evidence.query("COMMIT");
       } catch (error) { await evidence.query("ROLLBACK"); throw error; } finally { evidence.release(); }
@@ -265,17 +292,18 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
         const locked = await client.query("SELECT id, current_step FROM workflow_cases WHERE id = $1 AND organization_id = $2 AND status = 'active' FOR UPDATE", [workflowId, user.organizationId]);
         const latestProposal = await client.query("SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1", [workflowId]);
         if (!locked.rows[0] || locked.rows[0].current_step !== "backtest" || latestProposal.rows[0]?.id !== proposal.rows[0].id) throw invalidState("Workflow or proposal changed while backtesting; run again for the current version");
+        if (businessFingerprint(await loadContext(workflowId, user, client)) !== businessFingerprint(prepared)) throw invalidState("Proposal or policy changed while backtesting; check coverage again");
         const next = await client.query("SELECT COALESCE(max(run_number), 0)::int + 1 AS run_number FROM backtest_runs WHERE proposed_portfolio_version_id = $1", [proposal.rows[0].id]);
         const saved = await client.query(
           `INSERT INTO backtest_runs
             (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
              metrics, hard_control_pass, review_flags, model_version, run_by, history_mode, short_history_confirmation_id)
-           VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.2.0', $10, $11, $12) RETURNING *`,
+           VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.2.1', $10, $11, $12) RETURNING *`,
           [proposal.rows[0].id, next.rows[0].run_number, startDate, endDate,
             JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: report.methodology }),
             JSON.stringify({ provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",
-              primaryProviderStatus: eodhdToken ? (allSeries.every((item) => item.sourceName === "EODHD") ? "succeeded" : "partial_fallback") : "not_configured",
-              symbols: allSymbols, eodhdSymbols: uniqueRequests.map((item) => item.eodhdSymbol), retrievedAt: new Date().toISOString(),
+              primaryProviderStatus: eodhdConfigured ? (allSeries.every((item) => item.sourceName === "EODHD") ? "succeeded" : "partial_fallback") : "not_configured",
+              symbols: allSymbols, eodhdSymbols: uniqueRequests.map((item) => item.eodhdSymbol), retrievedAt: report.checkedAt, backtestedAt: new Date().toISOString(), dataSnapshotId: consent?.snapshotId ?? null,
               persistedToMarketObservations: true, coverageReport: { ...report, shortHistory: { ...report.shortHistory, accepted: Boolean(confirmation) } }, shortHistoryConfirmation: confirmation,
               sources: allSeries.map((item) => ({ symbol: item.symbol, provider: item.sourceName, url: item.sourceUrl, fallbackReason: item.fallbackReason ?? null })) }),
             JSON.stringify({ sleeves: sleeveMetrics }), hardControlPass, JSON.stringify(reviewFlags), user.id, confirmation ? "confirmed_short_history" : "standard", confirmation?.id ?? null],

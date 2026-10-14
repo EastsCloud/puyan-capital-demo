@@ -1,5 +1,15 @@
 # Isater Review Release Status
 
+## 2026-10-13: Checked-price snapshot confirmation fix
+
+- Short-history confirmation now uses the exact prices checked earlier, stored in PostgreSQL for a 30-minute confirmation window. It does not make a second provider request or reject harmless provider-price fluctuations.
+- Snapshots are scoped to the checking user, organization, workflow, and proposal. Current holdings, targets, benchmark weights, and effective policy are revalidated separately; genuine business changes still require a new check. Expired snapshots display a specific recovery instruction.
+- Immutable consent evidence copies all exact price series and retains the snapshot ID; expiry, cleanup, and demo reset do not erase the evidence. Optimization reuses frozen original security/benchmark data where available.
+- Additive migration 0023 preserves existing business records. No reset is needed. Refresh after deployment and perform a fresh coverage check before confirming.
+- Verification: 90 automated tests, type checks, and production build passed. PostgreSQL-compatible integration tests cover saved snapshots, no provider refetch, complete immutable evidence, expiry, and cache deletion. Mocked desktop/mobile browser checks cover confirmation, cancellation, expiry recovery, and import regression. Production deployment acceptance is not implied by local tests.
+
+Details: [Historical Data Coverage](docs/historical-data-coverage.md).
+
 ## 2026-10-13: Explicit available-history backtesting
 
 - Execution users can explicitly confirm a single run using the common available real-price window. Standard runs still require 100 completed weeks. Missing prices and uncalculable beta remain blocked; no sample prices or excluded holdings are introduced.

@@ -48,6 +48,7 @@ describe("PostgreSQL migrations", () => {
       "external_cash_flows",
       "report_distributions",
       "backtest_history_confirmations",
+      "backtest_data_snapshots",
     ]));
   });
 

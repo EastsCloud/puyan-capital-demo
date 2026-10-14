@@ -172,6 +172,12 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const confirmedWeeks: string[] | null = confirmedShort ? priorData.shortHistoryConfirmation?.usedWeeks ?? null : null;
     if (confirmedShort && (!prior.rows[0].short_history_confirmation_id || !confirmedWeeks || confirmedWeeks.length < SHORT_HISTORY_TECHNICAL_MINIMUM)) throw invalidState("Short-history confirmation is missing; rerun backtest with explicit confirmation");
     const minimumWeeks = confirmedShort ? SHORT_HISTORY_TECHNICAL_MINIMUM : 100;
+    const frozenSeries = new Map<string, PriceSeries>();
+    if (confirmedShort) {
+      const evidence = await pool.query("SELECT history_snapshot FROM backtest_history_confirmations WHERE id=$1 AND organization_id=$2", [prior.rows[0].short_history_confirmation_id, user.organizationId]);
+      const prices: PriceSeries[] = evidence.rows[0] ? jsonValue<Record<string, any>>(evidence.rows[0].history_snapshot).prices ?? [] : [];
+      for (const series of prices) frozenSeries.set(series.symbol, series);
+    }
     const priorMetrics = jsonValue<{ sleeves: Array<{ sleeve: SleeveKey; hardPass: boolean }> }>(prior.rows[0].metrics);
     const failedSleeves = priorMetrics.sleeves.filter((item) => !item.hardPass).map((item) => item.sleeve);
     const proposalId = prior.rows[0].proposed_portfolio_version_id;
@@ -209,7 +215,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       await saveObservations(result.series);
       return result.series[0];
     };
-    const seriesCache = new Map<string, Promise<PriceSeries>>();
+    const seriesCache = new Map<string, Promise<PriceSeries>>([...frozenSeries].map(([symbol, series]) => [symbol, Promise.resolve(series)]));
     const priceSeries = (holding: OptimizerHolding): Promise<PriceSeries> => {
       const symbol = yahooSymbol(holding.ticker, holding.market);
       const cached = seriesCache.get(symbol);
@@ -231,6 +237,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       const activeBenchmarks = priorBenchmarkManifest.sleeves[sleeve].filter(item => Number(item.weight) > 0);
       const indexSymbols: Record<string, string> = { "^GSPC": "GSPC.INDX", "^N225": "N225.INDX", "000001.SS": "000001.SHG", "^HSI": "HSI.INDX" };
       const benchmarkSeries = await Promise.all(activeBenchmarks.map(async item => {
+        if (frozenSeries.has(item.symbol)) return frozenSeries.get(item.symbol)!;
         try { return await storedSeries(item.symbol, minimumWeeks); }
         catch { return retrieveSeries(item.symbol, indexSymbols[item.symbol] ?? item.symbol); }
       }));

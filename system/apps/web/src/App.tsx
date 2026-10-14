@@ -1341,9 +1341,9 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       setMessage(result.report.ready ? (zh ? "价格覆盖检查通过，可以运行回测；风险控制仍需计算。" : "Price coverage ready. Run the backtest to check risk controls.") : (zh ? "已列出所有数据问题。不会自动放宽100周门槛。" : "All data issues are listed. The 100-week minimum has not been relaxed."));
     } catch (reason) { setMessage((reason as Error).message); } finally { setBusy(false); }
   }
-  async function runBacktest(shortHistoryConfirmation?: { acknowledged: true; proposedPortfolioVersionId: string; coverageFingerprint: string }) {
+  async function runBacktest(shortHistoryConfirmation?: { acknowledged: true; proposedPortfolioVersionId: string; coverageFingerprint: string; snapshotId: string }) {
     if (!workflow) return;
-    setBusy(true); setHistoryCoverage(null); setMessage(zh ? "正在取得并核验三个市场的三年周度真实价格。" : "Retrieving and validating three years of weekly market prices.");
+    setBusy(true); setHistoryCoverage(null); setMessage(shortHistoryConfirmation ? (zh ? "正在使用已核验的价格快照回测，不再重新取价。" : "Backtesting the checked price snapshot without fetching again.") : (zh ? "正在取得并核验三个市场的三年周度真实价格。" : "Retrieving and validating three years of weekly market prices."));
     try {
       const result = await api<{ backtestRun: BacktestRun }>(`/api/workflows/${workflow.id}/backtest/runs`, { method: "POST", body: JSON.stringify({ shortHistoryConfirmation }) });
       setBacktestContext((current) => ({ policy: current?.policy ?? { months: 36, frequency: "weekly", betaRelative: 0.05, returnShortfall: 0.05, drawdownExcess: 0.10 }, backtestRun: result.backtestRun }));
@@ -1359,8 +1359,9 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
   function confirmShortHistory() {
     const option = historyCoverage?.shortHistory;
     if (!option?.eligible || option.accepted) return;
+    if (!option.snapshotId) { setMessage(zh ? "请重新检查全部价格覆盖，生成本次价格快照后再确认。" : "Check all price coverage again to create a price snapshot before confirming."); return; }
     const warning = zh ? `确认使用现有真实历史回测？\n区间：${option.firstWeek} – ${option.lastWeek}，${option.commonWeeks} 个共同周价格。\n年化收益、Beta 和最大回撤可能不稳定，不等于完整三年验证。风险检查及委员会审批不变。\n确认人、时间、组合版本和数据区间将永久记录在数据库。` : `Use available real history?\n${option.firstWeek} – ${option.lastWeek}; ${option.commonWeeks} common weekly prices.\n${option.warning}\nYour identity, time, proposal version and data window will be recorded permanently.`;
-    if (window.confirm(warning)) void runBacktest({ acknowledged: true, proposedPortfolioVersionId: option.proposedPortfolioVersionId, coverageFingerprint: option.coverageFingerprint });
+    if (window.confirm(warning)) void runBacktest({ acknowledged: true, proposedPortfolioVersionId: option.proposedPortfolioVersionId, coverageFingerprint: option.coverageFingerprint, snapshotId: option.snapshotId });
   }
   async function recordBacktestOutcome() {
     if (!workflow || !backtestContext?.backtestRun) return;

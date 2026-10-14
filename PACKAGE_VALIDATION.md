@@ -35,6 +35,8 @@ Validation date: 2026-08-07
 
 ## Integrity
 
+The checked-price snapshot fix passed 90 automated tests and production/type checks. All 23 SQL migrations were applied in test databases. A PostgreSQL-compatible API integration test verifies preflight-to-confirmation-to-backtest persistence, exact price evidence, cache deletion, and server-side expiry. Desktop/mobile mocked-browser tests verify expiry recovery and the snapshot ID sent with consent.
+
 The 2026-10-13 available-history update passed 85 automated tests, TypeScript checks, and production builds. Database tests apply all 22 migrations and verify immutable confirmation evidence. Local headless-browser acceptance checks explicit cancellation/confirmation and refreshed short-history notices on desktop/mobile; mocked browser responses do not establish production financial-model acceptance.
 
 - `MANIFEST.sha256` records the intended package files and hashes.
