@@ -1,5 +1,15 @@
 # Isater Review Release Status
 
+## 2026-10-15: Revision without reset and durable error details
+
+- Execution users can return from backtest/optimization to proposal editing without clearing the annual cycle. Changed drafts create a new version; identical submissions reuse the current version. Existing approved and historical records remain intact.
+- Explicit saved/unsaved, modified/unchanged, pending-backtest, and historical-result notices include per-security changes and comparison of saved versions. Historical versions can seed new drafts but cannot reuse their old approval as validation of a changed portfolio.
+- New failed optimization jobs persist sanitized exception details, stage, sleeve, count, timestamp, and task ID, with a failure audit event and an application-level log. Older failures without captured details need a new reproduction; the supplied health/authentication logs did not establish the original task's root cause.
+- API gates preserve organization/role isolation, locked names, confirmed market allocations and risk targets, prohibit editing during approval or implementation, and prevent stale results from advancing or approving a new proposal.
+- Migration 0025 is additive; no reset or additional hosting service is needed. 120 tests, type checks, production builds, the 256 MB heap smoke test, and local mocked desktop/mobile regressions passed. Live deployment and financial-model acceptance are separate checks.
+
+Details: [Portfolio Iterations](docs/proposal-iterations.md).
+
 ## 2026-10-14: Memory-bounded background optimization
 
 - Replaced eager weight-vector and replacement-combination enumeration with a bounded coordinate search and lazy replacement candidates. The previous enumeration could exhaust the small server heap and cause HTTP 502. The new solver is heuristic, not a proof of global optimality or infeasibility.

@@ -18,7 +18,7 @@ vi.mock("../src/db.js", () => {
   };
   return { pool: { query, connect: async () => ({ query, release() {} }) } };
 });
-vi.mock("../src/auth.js", () => ({ requirePasswordChanged: (request: any) => {
+vi.mock("../src/auth.js", () => ({ requireUser:(request:any)=>request.currentUser,requirePasswordChanged: (request: any) => {
   if (!request.currentUser) throw Object.assign(new Error("unauthorized"), { statusCode: 401 });
   return request.currentUser;
 } }));
@@ -34,6 +34,7 @@ vi.mock("../src/market-history.js", async (importOriginal) => {
 });
 import { registerProposedPortfolioRoutes } from "../src/proposed-portfolio.js";
 import { registerSecurityRoutes } from "../src/securities.js";
+import {registerWorkflowRoutes} from '../src/workflows.js';
 
 const app = Fastify();
 let organizationId: string; let otherOrganizationId: string; let adminId: string; let workflowId: string; let approvedId: string;
@@ -56,12 +57,11 @@ beforeAll(async () => {
   existingNames = (await state.db.query("SELECT * FROM ticker_universe ORDER BY sleeve, style, ticker")).rows;
   for (const name of existingNames) await state.db.query("INSERT INTO proposed_holdings (proposed_portfolio_version_id, ticker, exchange_code, market, sleeve, style, weight) VALUES ($1,$2,$3,$4,$5,$6,0.125)", [approvedId, name.ticker, name.exchange_code, name.market, name.sleeve, name.style]);
   // Apply the new migration to a populated database, just as a deployment would.
-  await state.db.exec(await readFile(new URL("0020_organization_securities.sql", directory), "utf8"));
-  await state.db.exec(await readFile(new URL("0021_security_data_coverage.sql", directory), "utf8"));
+  for(const file of files.filter(file=>Number(file.slice(0,4))>=20))await state.db.exec(await readFile(new URL(file,directory),'utf8'));
   app.decorateRequest("currentUser", null);
   app.addHook("onRequest", async (request) => { request.currentUser = user(request.headers["x-test-role"] as string ?? "execution_team", request.headers["x-test-org"] as string ?? organizationId) as any; });
   app.setErrorHandler((error, _request, reply) => reply.code(error instanceof ZodError ? 400 : (error as any).statusCode ?? 500).send({ error: (error as Error).message }));
-  await registerProposedPortfolioRoutes(app); await registerSecurityRoutes(app); await app.ready();
+  await registerProposedPortfolioRoutes(app); await registerSecurityRoutes(app);await registerWorkflowRoutes(app); await app.ready();
 }, 30_000);
 afterAll(async () => { await app.close(); await state.db?.close(); });
 
@@ -133,4 +133,55 @@ describe("proposed portfolio persistence and security registration", () => {
     expect((await app.inject({method:"POST",url:"/api/admin/securities",headers,payload:{...payload,ticker:"NOREAL"}})).statusCode).toBe(422);
     expect((await state.db.query("SELECT * FROM ticker_universe WHERE ticker = 'NOREAL'")).rows).toHaveLength(0);
   });
+});
+
+describe('revision without reset and historical comparison',()=>{
+ let base:string,newId:string,baseline:any[],backtestId:string;
+ const post=(suffix:string,payload:any,headers?:Record<string,string>)=>app.inject({method:'POST',url:`/api/workflows/${workflowId}/${suffix}`,payload,headers});
+ it('reopens the latest failed proposal with an audit, without changing saved holdings or approved history',async()=>{
+  base=(await state.db.query('SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1',[workflowId])).rows[0].id;
+  baseline=(await state.db.query('SELECT h.*,u.id AS universe_id FROM proposed_holdings h JOIN ticker_universe u ON u.ticker=h.ticker AND u.exchange_code=h.exchange_code WHERE h.proposed_portfolio_version_id=$1 ORDER BY h.sleeve,h.ticker',[base])).rows;
+  backtestId=(await state.db.query("INSERT INTO backtest_runs(proposed_portfolio_version_id,run_number,start_date,end_date,frequency,benchmark_manifest,data_manifest,metrics,hard_control_pass,model_version,run_by) VALUES ($1,1,'2023-01-01','2026-01-01','weekly','{}','{}','{\"sleeves\":[]}',false,'test',$2) RETURNING id",[base,adminId])).rows[0].id;
+  await state.db.query("UPDATE workflow_cases SET current_step='optimization' WHERE id=$1",[workflowId]);
+  expect((await post('proposed-portfolio/reopen',{baseProposalId:base},{'x-test-role':'decision_committee'})).statusCode).toBe(403);
+  expect((await post('proposed-portfolio/reopen',{baseProposalId:base},{'x-test-org':otherOrganizationId})).statusCode).toBe(409);
+  const response=await post('proposed-portfolio/reopen',{baseProposalId:base});expect(response.statusCode,response.body).toBe(200);expect(response.json().workflow.current_step).toBe('proposed_portfolio');
+  expect((await state.db.query('SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id=$1',[base])).rows).toHaveLength(baseline.length);
+  expect((await state.db.query('SELECT status FROM proposed_portfolio_versions WHERE id=$1',[approvedId])).rows[0].status).toBe('approved');
+ });
+ it('reuses an unchanged version but records modifications as a new untested version',async()=>{
+  const holdings=baseline.map(h=>({tickerUniverseId:h.universe_id,weight:Number(h.weight)}));
+  const unchanged=await post('proposed-portfolio/versions',{baseProposalId:base,holdings});expect(unchanged.statusCode,unchanged.body).toBe(200);expect(unchanged.json().unchanged).toBe(true);expect(unchanged.json().proposedPortfolioVersion.id).toBe(base);
+  expect((await post('actions',{action:'submit_proposed_portfolio',payload:{proposedPortfolioVersionId:base,revisionOpenedAt:'2000-01-01'}})).statusCode).toBe(403);
+  expect((await post('actions',{action:'submit_proposed_portfolio',payload:{proposedPortfolioVersionId:base}})).statusCode).toBe(200);
+  expect((await post('actions',{action:'record_backtest_fail',payload:{backtestRunId:backtestId}})).statusCode).toBe(409);
+  expect((await post('proposed-portfolio/reopen',{baseProposalId:base})).statusCode).toBe(200);
+  const modified=holdings.map((h,i)=>({...h,weight:h.weight+(i===0?.01:i===1?-.01:0)}));
+  const saved=await post('proposed-portfolio/versions',{baseProposalId:base,holdings:modified});expect(saved.statusCode,saved.body).toBe(201);newId=saved.json().proposedPortfolioVersion.id;expect(saved.json().proposedPortfolioVersion).toMatchObject({parent_version_id:base,change_summary:{changed:true}});
+  expect((await state.db.query('SELECT * FROM backtest_runs WHERE proposed_portfolio_version_id=$1',[newId])).rows).toHaveLength(0);
+  expect((await post('proposed-portfolio/versions',{baseProposalId:base,holdings})).statusCode).toBe(409);
+ });
+ it('compares scoped historical results and blocks stale backtests from advancing the new proposal',async()=>{
+  const response=await app.inject({method:'GET',url:`/api/workflows/${workflowId}/proposed-portfolio/history`});const versions=response.json().versions;
+  expect(versions[0]).toMatchObject({id:newId,isCurrent:true,backtest:null});expect(versions.find((v:any)=>v.id===base)).toMatchObject({isHistorical:true,backtest:{id:backtestId}});
+  expect((await app.inject({method:'GET',url:`/api/workflows/${workflowId}/proposed-portfolio/history`,headers:{'x-test-org':otherOrganizationId}})).statusCode).toBe(404);
+  expect((await post('actions',{action:'submit_proposed_portfolio',payload:{proposedPortfolioVersionId:base}})).statusCode).toBe(409);
+  expect((await post('actions',{action:'submit_proposed_portfolio',payload:{proposedPortfolioVersionId:newId}})).statusCode).toBe(200);
+  expect((await post('actions',{action:'record_backtest_pass',payload:{backtestRunId:backtestId}})).statusCode).toBe(409);
+ });
+ it('does not allow revision during approval/implementation or while an optimizer is active',async()=>{
+  for(const step of ['portfolio_approval','implementation','monitoring']){await state.db.query('UPDATE workflow_cases SET current_step=$2 WHERE id=$1',[workflowId,step]);expect((await post('proposed-portfolio/reopen',{baseProposalId:newId})).statusCode).toBe(409);}
+  await state.db.query("UPDATE workflow_cases SET current_step='optimization' WHERE id=$1",[workflowId]);
+  const job=(await state.db.query('INSERT INTO optimization_jobs(organization_id,workflow_case_id,proposed_portfolio_version_id,backtest_run_id,requested_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',[organizationId,workflowId,newId,backtestId,adminId])).rows[0].id;
+  expect((await post('proposed-portfolio/reopen',{baseProposalId:newId})).statusCode).toBe(409);await state.db.query("UPDATE optimization_jobs SET status='interrupted' WHERE id=$1",[job]);
+ });
+ it('allows only the latest passing proposal to be submitted for committee approval',async()=>{
+  await state.db.query("UPDATE proposed_portfolio_versions SET status='backtest_passed' WHERE id=ANY($1::uuid[])",[[base,newId]]);
+  await state.db.query('UPDATE backtest_runs SET hard_control_pass=true WHERE id=$1',[backtestId]);
+  const currentRun=(await state.db.query("INSERT INTO backtest_runs(proposed_portfolio_version_id,run_number,start_date,end_date,frequency,benchmark_manifest,data_manifest,metrics,hard_control_pass,model_version,run_by) VALUES ($1,1,'2023-01-01','2026-01-01','weekly','{}','{}','{\"sleeves\":[]}',true,'test',$2) RETURNING id",[newId,adminId])).rows[0].id;
+  await state.db.query("UPDATE workflow_cases SET current_step='backtest' WHERE id=$1",[workflowId]);
+  expect((await post('actions',{action:'record_backtest_pass',payload:{backtestRunId:currentRun}})).statusCode).toBe(200);
+  expect((await post('approval-rounds',{action:'approve_portfolio',payload:{proposedPortfolioVersionId:base}})).statusCode).toBe(409);
+  const approved=await post('approval-rounds',{action:'approve_portfolio',payload:{proposedPortfolioVersionId:newId}});expect(approved.statusCode,approved.body).toBe(201);
+ });
 });

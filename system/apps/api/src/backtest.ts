@@ -154,14 +154,15 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
   app.get("/api/workflows/:workflowId/backtest/context", async (request) => {
     const user = requirePasswordChanged(request);
     const { workflowId } = request.params as { workflowId: string };
-    const workflow = await pool.query("SELECT id FROM workflow_cases WHERE id = $1 AND organization_id = $2", [workflowId, user.organizationId]);
+    const workflow = await pool.query("SELECT id,payload FROM workflow_cases WHERE id = $1 AND organization_id = $2", [workflowId, user.organizationId]);
     if (!workflow.rows[0]) throw invalidState("Workflow not found");
     const latest = await pool.query(
       `SELECT b.* FROM backtest_runs b JOIN proposed_portfolio_versions p ON p.id = b.proposed_portfolio_version_id
         WHERE p.workflow_case_id = $1 AND p.id = (SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1)
         ORDER BY b.run_at DESC LIMIT 1`, [workflowId],
     );
-    return { policy: await backtestParameters(user.organizationId), backtestRun: latest.rows[0] ?? null };
+    const stale=workflow.rows[0].payload?.revisionOpenedAt&&latest.rows[0]&&new Date(latest.rows[0].run_at).getTime()<new Date(workflow.rows[0].payload.revisionOpenedAt).getTime();
+    return { policy: await backtestParameters(user.organizationId), backtestRun: stale?null:latest.rows[0]??null };
   });
 
   app.post("/api/workflows/:workflowId/backtest/runs", async (request, reply) => {

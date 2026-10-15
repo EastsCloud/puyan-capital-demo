@@ -1,5 +1,7 @@
 # Proposed Portfolio Import and Draft Editing
 
+See [Portfolio Iterations](proposal-iterations.md) for pre-approval revision without reset, explicit modification states, historical comparisons, and current-version backtest/approval gates.
+
 ## Saved data, preview, and draft
 
 The proposed-portfolio page opens with the latest version saved for the current annual workflow. An empty workflow shows no holdings. System recommendations are loaded only through **Load recommendations** and remain an unsaved draft.

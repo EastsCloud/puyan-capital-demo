@@ -1,5 +1,7 @@
 # Bounded background optimization
 
+For durable error diagnostics and manual revision/comparison, see [Portfolio Iterations](proposal-iterations.md). Older failed jobs without detailed errors need a new reproduction; missing exception logs do not establish a root cause.
+
 ## Purpose and model boundary
 
 The application uses a custom, deterministic heuristic search, not a provider-supplied optimization service. Model `isater-optimizer-1.3.0` replaces eager enumeration of every weight vector and replacement combination. That enumeration could exhaust the small hosting instance's JavaScript heap and surface as HTTP 502.

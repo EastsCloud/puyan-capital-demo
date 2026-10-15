@@ -220,6 +220,7 @@ export async function registerWorkflowRoutes(app: FastifyInstance): Promise<void
   app.post("/api/workflows/:workflowId/actions", async (request) => {
     const user = requireUser(request);
     const input = annualActionSchema.parse(request.body);
+    if(['revisionBaseProposalId','revisionOpenedAt'].some(key=>Object.hasOwn(input.payload,key)))throw forbidden('Revision metadata is server-managed');
     if (committeeActions.has(input.action)) {
       throw invalidState("Committee actions must be completed through a vote");
     }
@@ -240,6 +241,15 @@ export async function registerWorkflowRoutes(app: FastifyInstance): Promise<void
       if (!workflow) throw invalidState("Active workflow not found");
       const transition = transitionAnnualCycle(workflow.current_step as AnnualCycleStep, input.action, user.role);
       if (!transition.allowed) throw forbidden(`Action not allowed: ${transition.reason}`);
+      if (input.action === 'submit_proposed_portfolio') {
+        const latest=(await client.query('SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1',[workflowId])).rows[0];
+        if(!latest||latest.id!==input.payload.proposedPortfolioVersionId)throw invalidState('The current saved proposal is required');
+      }
+      if (['record_backtest_pass','record_backtest_fail','accept_optimization'].includes(input.action)) {
+        const latest=(await client.query(`SELECT b.* FROM backtest_runs b WHERE b.proposed_portfolio_version_id=(SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1) ORDER BY b.run_at DESC LIMIT 1`,[workflowId])).rows[0];
+        if(!latest||(input.action!=='accept_optimization'&&latest.id!==input.payload.backtestRunId)||(input.action==='record_backtest_fail'?latest.hard_control_pass:!latest.hard_control_pass))throw invalidState('The latest backtest of the current proposal is required; historical results cannot advance a revised portfolio');
+        if(workflow.payload?.revisionOpenedAt&&new Date(latest.run_at).getTime()<new Date(workflow.payload.revisionOpenedAt).getTime())throw invalidState('返回修改后必须重新运行回测；旧结果仅供比较。');
+      }
       if (input.action === "publish_report") {
         const reportVersionId = input.payload.reportVersionId;
         if (typeof reportVersionId !== "string") throw invalidState("The report version is required");
@@ -332,7 +342,9 @@ export async function registerWorkflowRoutes(app: FastifyInstance): Promise<void
         const portfolioResult = await client.query(
           `SELECT p.id FROM proposed_portfolio_versions p
             JOIN backtest_runs b ON b.proposed_portfolio_version_id = p.id
-           WHERE p.id = $1 AND p.workflow_case_id = $2 AND p.status = 'backtest_passed' AND b.hard_control_pass = true`,
+           WHERE p.id = $1 AND p.workflow_case_id = $2 AND p.id=(SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$2 ORDER BY version DESC LIMIT 1)
+             AND p.status = 'backtest_passed' AND b.hard_control_pass = true
+             AND b.id=(SELECT id FROM backtest_runs WHERE proposed_portfolio_version_id=p.id ORDER BY run_at DESC LIMIT 1)`,
           [proposedPortfolioVersionId, workflowId],
         );
         if (!portfolioResult.rows[0]) throw invalidState("A backtest-passed portfolio is required for approval");

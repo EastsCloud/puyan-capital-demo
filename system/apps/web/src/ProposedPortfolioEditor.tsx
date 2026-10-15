@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileUp } from "lucide-react";
+import {compareDraftHoldings} from './proposal-changes';
 import { convertImportWeights, parsePortfolioCsv, previewRows, previewHoldings, validateHoldings, sleeves, sleeveName, type Holding, type Security, type ConstructionPolicy, type ImportRow, type PreviewRow, type Sleeve } from "./proposed-portfolio-model";
 
 export interface ProposalContext {
   universe: Security[]; policy: ConstructionPolicy; recommendedHoldings: Holding[];
   approvedSleeveWeights?: Partial<Record<Sleeve, number>>;
-  proposedPortfolioVersion: { id: string; version: number; status?: string; holdings?: Array<{ ticker: string; exchange_code: string; weight: string | number }> } | null;
+  proposedPortfolioVersion: { id: string; version: number; status?: string; change_summary?:{changed:boolean}; holdings?: Array<{ ticker: string; exchange_code: string; weight: string | number;locked?:boolean }> } | null;
 }
 
-export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, onRefresh, onDirtyChange }: {
+export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, onRefresh, onDirtyChange,copyFrom }: {
   context: ProposalContext; zh: boolean; canEdit: boolean; busy: boolean;
   onSubmit: (holdings: Holding[]) => Promise<void>; onRefresh: () => Promise<void>; onDirtyChange: (dirty: boolean) => void;
+  copyFrom?:{id:string;version:number;holdings:Array<{ticker:string;exchange_code:string;weight:string|number}>}|null;
 }) {
   const [draft, setDraft] = useState<Holding[] | null>(null);
   const [activeSleeve, setActiveSleeve] = useState<Sleeve>("us");
@@ -26,18 +28,27 @@ export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, 
     return security ? [{ tickerUniverseId: security.id, weight: Number(holding.weight) }] : [];
   }), [context]);
   const holdings = draft ?? saved;
+  const changes=compareDraftHoldings(saved,holdings);
+  const lockedIds=new Set((context.proposedPortfolioVersion?.holdings??[]).filter(h=>h.locked).flatMap(h=>context.universe.filter(s=>s.ticker===h.ticker&&s.exchange_code===h.exchange_code).map(s=>s.id)));
+  const unmapped=(context.proposedPortfolioVersion?.holdings?.length??0)-saved.length;
   const preview = useMemo(() => previewRows(imports ?? [], holdings, mode).map((row) => ({ ...row, action: actions[row.key] ?? row.action })), [imports, holdings, mode, actions]);
   const rawPrepared = previewHoldings(preview, zh);
   const converted = convertImportWeights(rawPrepared.holdings, context.universe, weightBasis, zh);
   const prepared = { holdings: converted.holdings, errors: [...rawPrepared.errors, ...converted.errors] };
   const errors = validateHoldings(holdings, context.universe, context.policy, zh);
-  const dirty = draft !== null || imports !== null;
+  const dirty = changes.changed || imports !== null;
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   useEffect(() => {
     const prevent = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", prevent); return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty]);
   useEffect(() => { setDraft(null); setImports(null); setMessage(null); }, [context.proposedPortfolioVersion?.id]);
+  useEffect(()=>{
+    if(!copyFrom||!canEdit)return;
+    const mapped=copyFrom.holdings.map(h=>({security:context.universe.find(s=>s.ticker===h.ticker&&s.exchange_code===h.exchange_code),weight:Number(h.weight)}));
+    if(mapped.some(h=>!h.security)){setMessage(zh?'历史方案有股票不在当前可用股票库，未载入；请管理员核对。':'Historical securities are unavailable in the current universe; nothing was loaded.');return;}
+    setDraft(mapped.map(h=>({tickerUniverseId:h.security!.id,weight:h.weight})));setImports(null);setMessage(zh?`已将历史 v${copyFrom.version} 复制为未保存草稿，历史回测不会用于新版本。`:`Historical v${copyFrom.version} copied to an unsaved draft. Old backtests will not validate a changed version.`);
+  },[copyFrom,canEdit,context.proposedPortfolioVersion?.id]);
 
   async function chooseFile(file: File | null) {
     if (!file) return;
@@ -75,7 +86,10 @@ export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, 
   const security = (id?: string) => context.universe.find((item) => item.id === id);
   const count = (sleeve: Sleeve) => holdings.filter((holding) => security(holding.tickerUniverseId)?.sleeve === sleeve).length;
   return <section className="annual-data-panel proposed-portfolio-panel">
-    <header><div><span className="section-label">{zh ? "拟投资组合" : "Proposed portfolio"}</span><h3>{draft !== null ? (zh ? "未保存草稿" : "Unsaved draft") : context.proposedPortfolioVersion ? (zh ? `数据库已保存 · v${context.proposedPortfolioVersion.version}` : `Saved in database · v${context.proposedPortfolioVersion.version}`) : (zh ? "尚无已保存拟持仓" : "No saved proposed holdings")}</h3><p>{zh ? "导入预览和草稿不会自动保存；提交后生成新版本，历史计划保留。" : "Preview and draft changes are not saved automatically. Submission creates a new version and preserves history."}</p></div><div className="policy-badge">{zh ? `单股上限 ${context.policy.maxSingleSecurityWeightPct}%` : `Single-name max ${context.policy.maxSingleSecurityWeightPct}%`}</div></header>
+    <header><div><span className="section-label">{zh ? "拟投资组合" : "Proposed portfolio"}</span><h3>{draft !== null ? (zh ? (changes.changed?"未保存草稿":"草稿未修改") : (changes.changed?"Unsaved draft":"Unchanged draft")) : context.proposedPortfolioVersion ? (zh ? `数据库已保存 · v${context.proposedPortfolioVersion.version}` : `Saved in database · v${context.proposedPortfolioVersion.version}`) : (zh ? "尚无已保存拟持仓" : "No saved proposed holdings")}</h3><p>{zh ? "导入预览不会改变组合。仅提交有修改的草稿时生成新版本；未修改则沿用原版本，历史记录保留。" : "Preview does not change the portfolio. Changed drafts create new versions; unchanged drafts reuse the saved version. History is retained."}</p></div><div className="policy-badge">{zh ? `单股上限 ${context.policy.maxSingleSecurityWeightPct}%` : `Single-name max ${context.policy.maxSingleSecurityWeightPct}%`}</div></header>
+    <p className="readonly-note proposal-change-status" role="status">{imports?(zh?'导入预览未应用，数据库未修改。':'Import preview not applied; database unchanged.'):changes.changed?(zh?`已修改（尚未保存）：新增 ${changes.added.length}，删除 ${changes.removed.length}，权重调整 ${changes.modified.length}。旧回测不能验证此草稿。`:`Modified, not saved: ${changes.added.length} added, ${changes.removed.length} removed, ${changes.modified.length} reweighted. Old backtests do not validate this draft.`):(zh?'未修改：与数据库已保存组合一致。':'Unchanged: matches the saved database portfolio.')}{context.proposedPortfolioVersion?.status==='submitted'&&<strong>{zh?' 已保存版本待回测。':' Saved version awaits backtesting.'}</strong>}</p>
+    {unmapped>0&&<p className="form-error">{zh?`${unmapped} 只已保存股票不在当前可用股票库，禁止提交以免误删，请管理员核对。`:`${unmapped} saved securities are unavailable. Submission is blocked to prevent silent deletion.`}</p>}
+    {changes.removed.length>0&&<p className="pending-note">{zh?'草稿拟删除（未保存）：':'Removed in draft (not saved): '}{changes.removed.map(id=>context.universe.find(s=>s.id===id)?.ticker??id).join(', ')}</p>}
     {message && <p className="form-message" role="status">{message}</p>}
     {canEdit && <>
       <div className="proposal-import"><div><FileUp size={20} /><span><strong>{zh ? "批量导入拟持仓" : "Bulk import proposed holdings"}</strong><small>{zh ? "Ticker, WeightPercent；可选 Exchange。预览中选择全股票组合权重或各市场组内权重。" : "Ticker, WeightPercent; optional Exchange. Choose whole-equity or within-sleeve percentages in the preview."}</small></span></div><label className="file-picker"><input type="file" accept=".csv,text/csv" disabled={busy || refreshing} onChange={(event) => { void chooseFile(event.target.files?.[0] ?? null); event.target.value = ""; }} /><span>{zh ? "选择 CSV 并预览" : "Choose CSV to preview"}</span></label><a className="secondary-button compact" href="/templates/proposed-portfolio-template.csv" download>{zh ? "下载模板" : "Download template"}</a></div>
@@ -98,14 +112,14 @@ export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, 
     </section>}
     <div className="proposal-counts" role="status"><strong>{zh ? `当前${draft !== null ? "草稿" : "已保存组合"}共${holdings.length}只` : `${draft !== null ? "Draft" : "Saved portfolio"}: ${holdings.length} names`}</strong>{sleeves.map((sleeve) => <span key={sleeve}>{sleeveName(sleeve, zh)}：{count(sleeve)}</span>)}</div>
     <div className="segmented sleeve-tabs">{sleeves.map((sleeve) => <button key={sleeve} className={activeSleeve === sleeve ? "active" : ""} onClick={() => setActiveSleeve(sleeve)}>{sleeveName(sleeve, zh)} ({count(sleeve)})</button>)}</div>
-    <div className="table-wrap"><table><thead><tr><th>Ticker</th><th>{zh ? "名称 / 交易所" : "Name / exchange"}</th><th>{zh ? "风格" : "Style"}</th><th>{zh ? "市场组内权重 (%)" : "Within-sleeve weight (%)"}</th>{canEdit && draft !== null && <th>{zh ? "操作" : "Action"}</th>}</tr></thead><tbody>{holdings.map((holding, index) => {
+    <div className="table-wrap"><table><thead><tr><th>Ticker</th><th>{zh ? "名称 / 交易所" : "Name / exchange"}</th><th>{zh ? "风格" : "Style"}</th><th>{zh ? "相对已保存版本" : "Compared with saved version"}</th><th>{zh ? "市场组内权重 (%)" : "Within-sleeve weight (%)"}</th>{canEdit && draft !== null && <th>{zh ? "操作" : "Action"}</th>}</tr></thead><tbody>{holdings.map((holding, index) => {
       const item = security(holding.tickerUniverseId); if (item?.sleeve !== activeSleeve) return null;
-      const editable = canEdit && draft !== null && !imports && !busy;
-      return <tr key={`${index}-${holding.tickerUniverseId}`}><td>{editable ? <select aria-label={`${item.ticker} security`} value={item.id} onChange={(event) => setDraft(holdings.map((entry, rowIndex) => rowIndex === index ? { ...entry, tickerUniverseId: event.target.value } : entry))}>{context.universe.filter((option) => option.sleeve === activeSleeve).map((option) => <option key={option.id} value={option.id}>{option.ticker} · {option.exchange_code}</option>)}</select> : <strong>{item.ticker}</strong>}</td><td>{/^https?:\/\//.test(item.source_url) ? <a href={item.source_url} target="_blank" rel="noreferrer">{zh ? item.name_zh : item.name_en}</a> : (zh ? item.name_zh : item.name_en)}<small>{item.exchange_code}</small></td><td>{item.style === "growth" ? (zh ? "成长" : "Growth") : (zh ? "价值" : "Value")}</td><td>{editable ? <input aria-label={`${item.ticker} weight`} type="number" min="0" step="any" value={Number.isFinite(holding.weight) ? Number((holding.weight * 100).toFixed(8)) : ""} onChange={(event) => setDraft(holdings.map((entry, rowIndex) => rowIndex === index ? { ...entry, weight: event.target.value === "" ? NaN : Number(event.target.value) / 100 } : entry))} /> : `${(holding.weight * 100).toFixed(2)}%`}</td>{canEdit && draft !== null && <td><button className="secondary-button compact" disabled={!editable} onClick={() => setDraft(holdings.filter((_, rowIndex) => rowIndex !== index))}>{zh ? "删除草稿股票" : "Remove from draft"}</button></td>}</tr>;
-    })}</tbody><tfoot><tr><td colSpan={3}>{zh ? "当前市场组合计" : "Current sleeve total"}</td><td>{(holdings.reduce((sum, holding) => sum + (security(holding.tickerUniverseId)?.sleeve === activeSleeve ? holding.weight : 0), 0) * 100).toFixed(2)}%</td></tr></tfoot></table></div>
+      const editable = canEdit && draft !== null && !imports && !busy && !lockedIds.has(holding.tickerUniverseId);
+      return <tr key={`${index}-${holding.tickerUniverseId}`}><td>{editable ? <select aria-label={`${item.ticker} security`} value={item.id} onChange={(event) => setDraft(holdings.map((entry, rowIndex) => rowIndex === index ? { ...entry, tickerUniverseId: event.target.value } : entry))}>{context.universe.filter((option) => option.sleeve === activeSleeve).map((option) => <option key={option.id} value={option.id}>{option.ticker} · {option.exchange_code}</option>)}</select> : <strong>{item.ticker}</strong>}</td><td>{/^https?:\/\//.test(item.source_url) ? <a href={item.source_url} target="_blank" rel="noreferrer">{zh ? item.name_zh : item.name_en}</a> : (zh ? item.name_zh : item.name_en)}<small>{item.exchange_code}</small></td><td>{item.style === "growth" ? (zh ? "成长" : "Growth") : (zh ? "价值" : "Value")}</td><td><strong className={changes.added.includes(holding.tickerUniverseId)||changes.modified.includes(holding.tickerUniverseId)?"proposal-modified":"result-pass"}>{changes.added.includes(holding.tickerUniverseId)?(zh?"新增":"Added"):changes.modified.includes(holding.tickerUniverseId)?(zh?"已修改":"Modified"):(zh?"未修改":"Unchanged")}</strong>{lockedIds.has(holding.tickerUniverseId)&&<small>{zh?"已锁定":"Locked"}</small>}</td><td>{editable ? <input aria-label={`${item.ticker} weight`} type="number" min="0" step="any" value={Number.isFinite(holding.weight) ? Number((holding.weight * 100).toFixed(8)) : ""} onChange={(event) => setDraft(holdings.map((entry, rowIndex) => rowIndex === index ? { ...entry, weight: event.target.value === "" ? NaN : Number(event.target.value) / 100 } : entry))} /> : `${(holding.weight * 100).toFixed(2)}%`}</td>{canEdit && draft !== null && <td><button className="secondary-button compact" disabled={!editable} onClick={() => setDraft(holdings.filter((_, rowIndex) => rowIndex !== index))}>{zh ? "删除草稿股票" : "Remove from draft"}</button></td>}</tr>;
+    })}</tbody><tfoot><tr><td colSpan={4}>{zh ? "当前市场组合计" : "Current sleeve total"}</td><td>{(holdings.reduce((sum, holding) => sum + (security(holding.tickerUniverseId)?.sleeve === activeSleeve ? holding.weight : 0), 0) * 100).toFixed(2)}%</td></tr></tfoot></table></div>
     {canEdit && draft !== null && !imports && <label className="proposal-add"><span>{zh ? "新增草稿股票" : "Add to draft"}</span><select aria-label={zh ? "新增草稿股票" : "Add security to draft"} value="" disabled={busy} onChange={(event) => { if (event.target.value) setDraft([...holdings, { tickerUniverseId: event.target.value, weight: 0 }]); }}><option value="">{zh ? "选择当前市场的股票" : "Choose a security in this sleeve"}</option>{context.universe.filter((item) => item.sleeve === activeSleeve && !holdings.some((holding) => holding.tickerUniverseId === item.id)).map((item) => <option key={item.id} value={item.id}>{item.ticker} · {item.exchange_code} · {zh ? item.name_zh : item.name_en}</option>)}</select></label>}
     {draft !== null && errors.length > 0 && <ul className="proposal-errors" role="alert">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
-    <div className="proposal-controls"><span>{zh ? `每个市场的每种风格 ${context.policy.styleTickerMin}–${context.policy.styleTickerMax} 只；各市场组内权重分别合计100%。` : `${context.policy.styleTickerMin}–${context.policy.styleTickerMax} names per style per sleeve; each sleeve must total 100%.`}</span>{canEdit && <button className="primary-button compact" disabled={busy || draft === null || !!imports || errors.length > 0} onClick={submit}>{zh ? "提交草稿并进入回测" : "Submit draft for backtest"}</button>}</div>
+    <div className="proposal-controls"><span>{zh ? `每个市场的每种风格 ${context.policy.styleTickerMin}–${context.policy.styleTickerMax} 只；各市场组内权重分别合计100%。` : `${context.policy.styleTickerMin}–${context.policy.styleTickerMax} names per style per sleeve; each sleeve must total 100%.`}</span>{canEdit && <button className="primary-button compact" disabled={busy || draft === null || !!imports || errors.length > 0 || unmapped>0} onClick={submit}>{changes.changed?(zh ? "提交草稿并进入回测" : "Submit draft for backtest"):(zh?"未修改，沿用此版本并进入回测":"Unchanged: reuse this version for backtest")}</button>}</div>
     {!canEdit && <p className="readonly-note">{zh ? "只读：只有执行小组可在拟投资组合步骤编辑新版本，历史计划不能直接删除。" : "Read only: the execution team can edit a new version at the proposed-portfolio step. Historical plans cannot be deleted."}</p>}
   </section>;
 }

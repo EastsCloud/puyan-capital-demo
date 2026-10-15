@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { ProposedPortfolioEditor } from "./ProposedPortfolioEditor";
+import {ProposalHistoryPanel,type ProposalVersion} from './ProposalHistoryPanel';
 import { SecuritiesPage } from "./SecuritiesPage";
 import { apiErrorMessage } from "./api-error";
 import { isSessionExpiry, sessionExpiryMessage } from "./api-session";
@@ -223,7 +224,7 @@ interface OptimizationRun {
   candidates: OptimizationCandidate[];
   selected_candidate_key: string | null;
 }
-interface OptimizationJob { id:string;status:'queued'|'preparing'|'running'|'succeeded'|'no_candidate'|'failed'|'interrupted';message:string|null;error_code:string|null;progress:{phase?:string;sleeve?:string;evaluations?:number;candidateSets?:number;completedSleeves?:number;totalSleeves?:number;replacementPricesLoaded?:number;replacementPriceLimit?:number} }
+interface OptimizationJob { id:string;status:'queued'|'preparing'|'running'|'succeeded'|'no_candidate'|'failed'|'interrupted';message:string|null;error_code:string|null;error_detail?:{category:string;reason:string;phase:string;sleeve?:string;evaluations:number}|null;progress:{phase?:string;sleeve?:string;evaluations?:number;candidateSets?:number;completedSleeves?:number;totalSleeves?:number;replacementPricesLoaded?:number;replacementPriceLimit?:number} }
 
 function optimizationSleeveResults(candidate: OptimizationCandidate): NonNullable<OptimizationCandidate["sleeveResults"]> {
   if (candidate.sleeveResults) return candidate.sleeveResults;
@@ -1205,6 +1206,8 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
   const [backtestContext, setBacktestContext] = useState<BacktestContext | null>(null);
   const [historyCoverage, setHistoryCoverage] = useState<HistoryReport | null>(null);
   const [optimizationRun, setOptimizationRun] = useState<OptimizationRun | null>(null);
+  const [proposalVersions,setProposalVersions]=useState<ProposalVersion[]>([]);
+  const [trialVersion,setTrialVersion]=useState<ProposalVersion|null>(null);
   const [optimizationJob,setOptimizationJob]=useState<OptimizationJob|null>(null);
   const optimizationRunning=Boolean(optimizationJob&&['queued','preparing','running'].includes(optimizationJob.status));
   const [portfolioApprovalContext, setPortfolioApprovalContext] = useState<PortfolioApprovalContext | null>(null);
@@ -1225,7 +1228,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
     setViewedStep(step);
   };
   const load = () => api<{ workflow: AnnualWorkflow | null }>("/api/workflows/annual/active").then((result) => setWorkflow(result.workflow));
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load().catch(reason=>setMessage((reason as Error).message)); }, []);
   useEffect(() => {
     if (!workflow) return;
     void Promise.all([
@@ -1251,13 +1254,16 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       displayStep === "optimization"
         ? api<{ optimizationRun: OptimizationRun | null;optimizationJob:OptimizationJob|null }>(`/api/workflows/${workflow.id}/optimization/context`).then((result) => {setOptimizationRun(result.optimizationRun);setOptimizationJob(result.optimizationJob??null);})
         : Promise.resolve(),
+      ['proposed_portfolio','backtest','optimization'].includes(displayStep??'')
+        ? api<{versions:ProposalVersion[]}>(`/api/workflows/${workflow.id}/proposed-portfolio/history`).then(r=>setProposalVersions(r.versions))
+        : Promise.resolve(),
       displayStep === "portfolio_approval"
         ? api<PortfolioApprovalContext>(`/api/workflows/${workflow.id}/portfolio-approval/context`).then(setPortfolioApprovalContext)
         : Promise.resolve(),
       displayStep === "implementation"
         ? api<ImplementationContext>(`/api/workflows/${workflow.id}/implementation/context`).then(setImplementationContext)
         : Promise.resolve(),
-    ]);
+    ]).catch(reason=>setMessage((reason as Error).message));
   }, [workflow?.id, workflow?.current_step, displayStep]);
   async function start(event: FormEvent) {
     event.preventDefault(); setMessage(null);
@@ -1329,15 +1335,16 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
     setBusy(true); setMessage(null);
     let savedVersion = false;
     try {
-      const saved = await api<{ proposedPortfolioVersion: { id: string } }>(`/api/workflows/${workflow.id}/proposed-portfolio/versions`, {
-        method: "POST", body: JSON.stringify({ holdings: proposedHoldings }),
+      const saved = await api<{ proposedPortfolioVersion: { id: string };unchanged?:boolean }>(`/api/workflows/${workflow.id}/proposed-portfolio/versions`, {
+        method: "POST", body: JSON.stringify({ holdings: proposedHoldings,baseProposalId:proposedContext?.proposedPortfolioVersion?.id??null }),
       });
       savedVersion = true;
       await api(`/api/workflows/${workflow.id}/actions`, {
         method: "POST", body: JSON.stringify({ action: "submit_proposed_portfolio", payload: { proposedPortfolioVersionId: saved.proposedPortfolioVersion.id } }),
       });
       await load();
-      setMessage(zh ? "拟投资组合已提交，进入真实历史回测。" : "The proposed portfolio is submitted for historical backtesting.");
+      setTrialVersion(null);setBacktestContext(null);setHistoryCoverage(null);setOptimizationRun(null);setOptimizationJob(null);
+      setMessage(saved.unchanged?(zh?'组合未修改，沿用原版本进入回测。':'Unchanged proposal reused for backtesting.'):(zh ? "修改已保存为新版本，待重新回测；旧结果不适用于此版本。" : "Changes saved as a new version awaiting backtest. Historical results do not validate this version."));
     } catch (reason) {
       if (savedVersion) {
         try { await load(); } catch { /* Keep the original submission error visible. */ }
@@ -1355,6 +1362,18 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       setMessage(result.report.ready ? (zh ? "价格覆盖检查通过，可以运行回测；风险控制仍需计算。" : "Price coverage ready. Run the backtest to check risk controls.") : (zh ? "已列出所有数据问题。不会自动放宽100周门槛。" : "All data issues are listed. The 100-week minimum has not been relaxed."));
     } catch (reason) { setMessage((reason as Error).message); } finally { setBusy(false); }
   }
+  async function beginProposalRevision(source:ProposalVersion=proposalVersions[0]) {
+    if(!workflow||!source||!proposalVersions[0])return;
+    if(proposalDirty&&!window.confirm(zh?'当前有未保存修改，是否放弃并载入所选版本？':'Discard unsaved changes and load this version?'))return;
+    if(workflow.current_step==='proposed_portfolio'){setTrialVersion({...source});return;}
+    if(!window.confirm(zh?'返回拟投资组合修改？原组合和回测记录保留，修改后需要重新回测，不改变市场配置及风控标准。':'Return to proposal editing? Existing versions/results are retained. Changed portfolios need a new backtest; market allocations and risk limits stay unchanged.'))return;
+    setBusy(true);
+    try{
+      const result=await api<{workflow:AnnualWorkflow}>(`/api/workflows/${workflow.id}/proposed-portfolio/reopen`,{method:'POST',body:JSON.stringify({baseProposalId:proposalVersions[0].id})});
+      setWorkflow(result.workflow);setViewedStep(null);setTrialVersion(source);setBacktestContext(null);setHistoryCoverage(null);setOptimizationRun(null);setOptimizationJob(null);
+      setMessage(zh?'已返回修改试算。尚未修改数据库持仓；保存有修改的草稿才会生成新版本。':'Returned to trial editing. Saved holdings are unchanged until a changed draft is submitted.');
+    }catch(error){setMessage((error as Error).message);}finally{setBusy(false);}
+  }
   async function runBacktest(shortHistoryConfirmation?: { acknowledged: true; proposedPortfolioVersionId: string; coverageFingerprint: string; snapshotId: string }) {
     if (!workflow) return;
     setBusy(true); setHistoryCoverage(null); setMessage(shortHistoryConfirmation ? (zh ? "正在使用已核验的价格快照回测，不再重新取价。" : "Backtesting the checked price snapshot without fetching again.") : (zh ? "正在取得并核验三个市场的三年周度真实价格。" : "Retrieving and validating three years of weekly market prices."));
@@ -1362,6 +1381,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       const result = await api<{ backtestRun: BacktestRun }>(`/api/workflows/${workflow.id}/backtest/runs`, { method: "POST", body: JSON.stringify({ shortHistoryConfirmation }) });
       setBacktestContext((current) => ({ policy: current?.policy ?? { months: 36, frequency: "weekly", betaRelative: 0.05, returnShortfall: 0.05, drawdownExcess: 0.10 }, backtestRun: result.backtestRun }));
       setHistoryCoverage(result.backtestRun.data_manifest.coverageReport ?? null);
+      void api<{versions:ProposalVersion[]}>(`/api/workflows/${workflow.id}/proposed-portfolio/history`,undefined,true).then(r=>setProposalVersions(r.versions)).catch(()=>{});
       setMessage(result.backtestRun.hard_control_pass ? (zh ? "三个 Sleeve 均通过硬性控制。" : "All sleeves passed hard controls.") : (zh ? "至少一个 Sleeve 未通过，需进入优化。" : "At least one sleeve failed and requires optimization."));
     } catch (reason) {
       const report = (reason as Error & { body?: { report?: HistoryReport } }).body?.report;
@@ -1471,6 +1491,10 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       return <li className={`${state} ${index === displayedIndex ? "selected" : ""}`} key={step}><button type="button" disabled={locked || busy} onClick={() => viewStep(step)} aria-current={index === displayedIndex ? "step" : undefined}><span>{String(index + 1).padStart(2, "0")}</span><strong>{labels[step][zh ? 0 : 1]}</strong><small>{state === "current" ? (zh ? "当前" : "Current") : state === "done" ? (zh ? "已完成" : "Completed") : (zh ? "未开始" : "Locked")}</small></button></li>;
     })}</ol>
       <section className={`current-step ${viewIsCurrent ? "" : "history-step"}`}><div><span>{viewIsCurrent ? (zh ? "当前步骤" : "Current step") : (zh ? "历史步骤 · 只读" : "Completed step · read only")}</span><h3>{displayStep ? labels[displayStep][zh ? 0 : 1] : ""}</h3><p>{!viewIsCurrent ? (zh ? "这里显示该步骤已经保存的数据和结果，不提供修改或审批按钮。" : "This view shows saved data and results without action or approval controls.") : displayStep === "annual_data" ? (zh ? "决策委员会运行年度公开数据引擎并审核系统建议。" : "The committee runs the annual public-data engine and reviews the system recommendation.") : displayStep === "target_return" ? (zh ? "决策委员会在管理员维护的范围内确定年度收益率下限。" : "The committee sets the annual return floor inside the administrator-maintained range.") : (zh ? "系统将根据当前角色显示应办事项。" : "The system shows the action due for the current role.")}</p></div>{!viewIsCurrent && <button className="current-step-return" type="button" onClick={() => setViewedStep(null)}>{zh ? "返回当前步骤" : "Return to current step"}<ChevronRight size={16} /></button>}</section>
+      {['proposed_portfolio','backtest','optimization'].includes(displayStep??'')&&<>
+        {viewIsCurrent&&user.role==='execution_team'&&['backtest','optimization'].includes(workflow.current_step)&&<div className="proposal-toolbar"><button className="secondary-button compact" disabled={busy||optimizationRunning||!proposalVersions.length} onClick={()=>void beginProposalRevision()}>{zh?'返回修改组合并重新回测（不重置）':'Revise portfolio and retest (no reset)'}</button><small>{zh?'仅调整个股及组内权重，不改变已确认的市场配置、收益目标和风控标准。':'Security and within-sleeve weights only. Approved market allocations, targets and risk controls stay unchanged.'}</small></div>}
+        <details className="proposal-history-toggle"><summary>{zh?"展开方案版本与回测对比（只读查看不修改组合）":"Compare proposal versions (viewing does not modify holdings)"}</summary><ProposalHistoryPanel versions={proposalVersions} zh={zh} busy={busy||optimizationRunning} onTry={viewIsCurrent&&user.role==='execution_team'?v=>void beginProposalRevision(v):undefined}/></details>
+      </>}
       {displayStep === "annual_data" && <section className="annual-data-panel">
         <div className="annual-data-toolbar"><div><span className="section-label">{zh ? "未来 12 个月情景" : "12-month scenario"}</span><div className="segmented">{(["bull", "balanced", "bear"] as const).map((value) => <button key={value} className={scenario === value ? "active" : ""} onClick={() => setScenario(value)} disabled={!viewIsCurrent || busy}>{scenarioLabels[value]}</button>)}</div></div>
           {viewIsCurrent && user.role === "decision_committee" && <button className="primary-button compact" onClick={runPublicData} disabled={busy}>{busy ? (zh ? "正在运行" : "Running") : (zh ? "运行公开数据引擎" : "Run public-data engine")}</button>}
@@ -1498,7 +1522,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
         <details className="source-details"><summary>{zh ? "查看约束说明" : "View control basis"}</summary><p>{zh ? "每个 Sleeve 使用本市场无风险利率计算目标 Beta；若公开数据基准收益已经超过组合目标，不会把收益率硬拉回目标。最大回撤限制结合历史回撤与管理员维护的收益/回撤比率。" : "Each sleeve uses its local risk-free rate for target beta. A public-data baseline above the portfolio floor is not forced down. Drawdown limits combine observed history with the administrator-maintained return/drawdown ratio."}</p></details>
         {viewIsCurrent && user.role === "execution_team" ? <div className="approval-actions"><button className="primary-button compact" onClick={confirmSleeveTargets} disabled={busy}>{zh ? "确认 Sleeve 目标并继续" : "Confirm sleeve targets"}</button></div> : <p className="readonly-note">{zh ? "只读：该步骤由执行小组确认。" : "Read only: the execution team owns this step."}</p>}
       </section>}
-      {displayStep === "proposed_portfolio" && proposedContext && <ProposedPortfolioEditor context={proposedContext} zh={zh} canEdit={viewIsCurrent && user.role === "execution_team"} busy={busy} onSubmit={submitProposedPortfolio} onDirtyChange={reportProposalDirty} onRefresh={async () => {
+      {displayStep === "proposed_portfolio" && proposedContext && <ProposedPortfolioEditor context={proposedContext} zh={zh} canEdit={viewIsCurrent && user.role === "execution_team"} busy={busy} copyFrom={trialVersion} onSubmit={submitProposedPortfolio} onDirtyChange={reportProposalDirty} onRefresh={async () => {
         const result = await api<ProposedPortfolioContext>(`/api/workflows/${workflow!.id}/proposed-portfolio/context`);
         setProposedContext(result);
       }} />}
@@ -1516,7 +1540,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       </section>}
       {displayStep === "optimization" && <section className="annual-data-panel optimization-panel">
         <header><div><span className="section-label">{zh ? "逐 Sleeve 优化" : "Sleeve-level optimization"}</span><h3>{zh ? "先调权重，再预算内搜索少量换股" : "Bounded weight search, then limited replacements"}</h3></div></header>
-        {optimizationJob && <div className="readonly-note" role="status"><strong>{optimizationRunning ? (zh ? '优化正在后台运行，请勿重复提交' : 'Optimization is running; do not submit again') : (zh ? `优化任务：${optimizationJob.status}` : `Optimization job: ${optimizationJob.status}`)}</strong><p>{optimizationJob.message ?? (zh ? '可离开页面，返回后会恢复进度。任务有时间和内存预算。' : 'You may leave and return. Time and memory budgets are enforced.')}</p><small>{optimizationJob.progress.sleeve ?? ''} · {optimizationJob.progress.phase ?? optimizationJob.status} · {optimizationJob.progress.evaluations ?? 0} {zh ? '次评估' : 'evaluations'}</small></div>}
+        {optimizationJob && <div className="readonly-note" role="status"><strong>{optimizationRunning ? (zh ? '优化正在后台运行，请勿重复提交' : 'Optimization is running; do not submit again') : (zh ? `优化任务：${optimizationJob.status}` : `Optimization job: ${optimizationJob.status}`)}</strong><p>{optimizationJob.message ?? (zh ? '可离开页面，返回后会恢复进度。任务有时间和内存预算。' : 'You may leave and return. Time and memory budgets are enforced.')}</p><small>任务 ID / Job ID: {optimizationJob.id} · {optimizationJob.error_code??"—"}</small>{optimizationJob.error_detail&&<p className="optimization-error-detail">{optimizationJob.error_detail.category} · {optimizationJob.error_detail.phase} · {optimizationJob.error_detail.sleeve??""}<br/>{optimizationJob.error_detail.reason}</p>}{optimizationJob.status==="failed"&&!optimizationJob.error_detail&&<p>{zh?"旧任务未保存详细异常，请重新运行以记录原因。":"This older job has no detailed error. Retry to record diagnostics."}</p>}<small>{optimizationRunning?(zh?"当前进度：":"Current progress: "):(zh?"最后记录进度：":"Last recorded progress: ")}{optimizationJob.progress.sleeve ?? ''} · {optimizationJob.progress.phase ?? optimizationJob.status} · {optimizationJob.progress.evaluations ?? 0} {zh ? '次评估' : 'evaluations'}</small></div>}
         {!optimizationRun ? <div className="backtest-ready"><div><strong>{zh ? "按 Sleeve 独立求解" : "Solve each sleeve independently"}</strong><span>{zh ? "保留已通过的 Sleeve；后台限时搜索，最多提供三组通过复核的方案，不保证全局最优。" : "Passing sleeves stay unchanged. Bounded background search returns up to three independently verified plans, not a global optimum."}</span></div>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={runOptimization} disabled={busy || optimizationRunning}>{(busy || optimizationRunning) ? (zh ? "正在后台优化" : "Running in background") : (zh ? "开始优化（最多三组）" : "Start optimization (up to three)")}</button>}</div> : <div className="optimization-grid">{optimizationRun.candidates.map((candidate) => <article key={candidate.key} className="optimization-card"><header><span>{candidate.label}</span><strong>{candidate.sleeveResults ? (zh ? "完整方案" : "Complete plan") : (candidate.sleeve ? sleeveLabels[candidate.sleeve] : "")}</strong></header>{optimizationSleeveResults(candidate).map((result) => <section className="optimization-sleeve" key={result.sleeve}><h4>{sleeveLabels[result.sleeve]}</h4><dl><div><dt>Beta</dt><dd>{result.metrics.beta.toFixed(3)}</dd></div><div><dt>{zh ? "收益率" : "Return"}</dt><dd>{pct(result.metrics.annualizedReturn)}</dd></div><div><dt>{zh ? "最大回撤" : "Max drawdown"}</dt><dd>{pct(result.metrics.maximumDrawdown)}</dd></div><div><dt>{zh ? "单边换手" : "One-way turnover"}</dt><dd>{pct(result.turnover)}</dd></div></dl><div className="weight-changes">{result.holdings.filter((holding) => Math.abs(holding.proposedWeight - holding.currentWeight) > 0.0001).map((holding) => <span key={holding.ticker}><b>{holding.ticker}</b>{pct(holding.currentWeight)} → {pct(holding.proposedWeight)}</span>)}</div></section>)}<footer><span>{candidate.tickerReplacements === 0 ? (zh ? "不更换 Ticker" : "No ticker replacement") : (zh ? `本方案更换 ${candidate.tickerReplacements} 支` : `${candidate.tickerReplacements} replacements in this plan`)}</span>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={() => selectOptimization(candidate.key)} disabled={busy || optimizationRunning}>{zh ? "接受并提交审批" : "Accept and submit"}</button>}</footer></article>)}</div>}
       </section>}
       {displayStep === "portfolio_approval" && portfolioApprovalContext && <section className="annual-data-panel portfolio-approval-panel">

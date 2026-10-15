@@ -4,10 +4,12 @@ import { z } from "zod";
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
+import {proposalChanges,registerProposalRevisionRoutes} from './proposal-revisions.js';
 
 const saveSchema = z.object({
   // Business limits below follow the effective style policy instead of a fixed 30-name cap.
   holdings: z.array(z.object({ tickerUniverseId: z.string().uuid(), weight: z.number().positive().max(1) })).min(1).max(600),
+  baseProposalId: z.string().uuid().nullable().optional(),
 });
 
 function forbidden(message = "Forbidden") {
@@ -39,6 +41,7 @@ async function constructionPolicy(organizationId: string) {
 }
 
 export async function registerProposedPortfolioRoutes(app: FastifyInstance): Promise<void> {
+  await registerProposalRevisionRoutes(app);
   app.get("/api/workflows/:workflowId/portfolio-approval/context", async (request) => {
     const user = requirePasswordChanged(request);
     const { workflowId } = request.params as { workflowId: string };
@@ -147,35 +150,42 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     try {
       await client.query("BEGIN");
       const lockedWorkflow = await client.query(
-        "SELECT current_step, status FROM workflow_cases WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        "SELECT current_step, status, payload FROM workflow_cases WHERE id = $1 AND organization_id = $2 FOR UPDATE",
         [workflowId, user.organizationId],
       );
       if (lockedWorkflow.rows[0]?.status !== "active" || lockedWorkflow.rows[0]?.current_step !== "proposed_portfolio") {
         throw invalidState("Proposed portfolio is not the current workflow step");
       }
+      const previous=(await client.query('SELECT * FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1',[workflowId])).rows[0];
+      if(lockedWorkflow.rows[0].payload?.revisionBaseProposalId&&input.baseProposalId===undefined)throw invalidState('修改试算必须指定当前基础版本，请刷新页面。');
+      if(input.baseProposalId !== undefined && input.baseProposalId !== (previous?.id??null)) throw invalidState('组合已被其他用户更新，请刷新后再修改。');
+      const previousHoldings=previous?(await client.query('SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id=$1',[previous.id])).rows:[];
+      for(const locked of previousHoldings.filter(h=>h.locked)){const next=resolved.find(h=>h.ticker===locked.ticker&&h.exchange_code===locked.exchange_code);if(!next||Math.abs(next.weight-Number(locked.weight))>0.000000005)throw invalidState(`Locked holding ${locked.ticker} cannot be removed or reweighted`);}
+      const changes=proposalChanges(previousHoldings,resolved.map(h=>({...h,locked:previousHoldings.find(old=>old.ticker===h.ticker&&old.exchange_code===h.exchange_code)?.locked??false})));
+      if(previous&&!changes.changed&&previous.sleeve_target_version_id===sleeveTarget.rows[0].id){await client.query('COMMIT');return reply.code(200).send({proposedPortfolioVersion:previous,unchanged:true});}
       const next = await client.query(
         "SELECT COALESCE(max(version), 0)::int + 1 AS version FROM proposed_portfolio_versions WHERE workflow_case_id = $1",
         [workflowId],
       );
       const saved = await client.query(
         `INSERT INTO proposed_portfolio_versions
-          (workflow_case_id, sleeve_target_version_id, version, status, created_by, submitted_at)
-         VALUES ($1, $2, $3, 'submitted', $4, now()) RETURNING *`,
-        [workflowId, sleeveTarget.rows[0].id, next.rows[0].version, user.id],
+          (workflow_case_id, sleeve_target_version_id, version, status, created_by, submitted_at,parent_version_id,change_summary)
+         VALUES ($1, $2, $3, 'submitted', $4, now(),$5,$6) RETURNING *`,
+        [workflowId, sleeveTarget.rows[0].id, next.rows[0].version, user.id,previous?.id??null,changes],
       );
       for (const item of resolved) {
         await client.query(
           `INSERT INTO proposed_holdings
-            (proposed_portfolio_version_id, ticker, exchange_code, market, sleeve, style, weight)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [saved.rows[0].id, item.ticker, item.exchange_code, item.market, item.sleeve, item.style, item.weight],
+            (proposed_portfolio_version_id, ticker, exchange_code, market, sleeve, style, weight,locked)
+           VALUES ($1, $2, $3, $4, $5, $6, $7,$8)`,
+          [saved.rows[0].id, item.ticker, item.exchange_code, item.market, item.sleeve, item.style, item.weight,previousHoldings.find(old=>old.ticker===item.ticker&&old.exchange_code===item.exchange_code)?.locked??false],
         );
       }
       await writeAudit(client, {
         organizationId: user.organizationId, actorUserId: user.id, action: "proposed_portfolio.submit",
         entityType: "proposed_portfolio_version", entityId: saved.rows[0].id, outcome: "allowed",
         requestId: request.id, ipAddress: request.ip,
-        detail: { version: saved.rows[0].version, holdingCount: resolved.length, policy },
+        detail: { version: saved.rows[0].version, holdingCount: resolved.length, policy,parentVersionId:previous?.id??null,changes },
       });
       await client.query("COMMIT");
       return reply.code(201).send({ proposedPortfolioVersion: saved.rows[0] });

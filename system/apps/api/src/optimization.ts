@@ -23,6 +23,7 @@ import { registerOptimizationJobs, latestOptimizationJob } from './optimization-
 import { keyOf as holdingKey, type OptimizerHolding, type SolverSolution as FeasibleSolution, type SleeveKey } from './optimizer-search.js';
 export { oneWayTurnover, replacementCandidateSets, type OptimizerHolding } from './optimizer-search.js';
 import { businessFingerprint } from './short-history.js';
+import {proposalChanges} from './proposal-revisions.js';
 
 function forbidden(message = "Forbidden") {
   const error = new Error(message) as Error & { statusCode: number };
@@ -66,13 +67,17 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const { workflowId } = request.params as { workflowId: string };
     const latest = await pool.query(
       `SELECT o.* FROM optimization_runs o JOIN proposed_portfolio_versions p ON p.id = o.proposed_portfolio_version_id
-        WHERE p.workflow_case_id = $1 AND p.workflow_case_id IN
+        WHERE p.workflow_case_id = $1 AND p.id=(SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1)
+          AND o.backtest_run_id=(SELECT id FROM backtest_runs WHERE proposed_portfolio_version_id=p.id ORDER BY run_at DESC LIMIT 1) AND p.workflow_case_id IN
           (SELECT id FROM workflow_cases WHERE organization_id = $2)
         ORDER BY o.run_at DESC LIMIT 1`, [workflowId, user.organizationId],
     );
     const optimizationJob=await latestOptimizationJob(workflowId,user.organizationId);
-    const optimizationRun=optimizationJob&&!optimizationJob.optimization_run_id?null:latest.rows[0]??null;
-    return { optimizationRun, optimizationJob };
+    const current=(await pool.query('SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1',[workflowId])).rows[0];
+    const currentBacktest=current?(await pool.query('SELECT id FROM backtest_runs WHERE proposed_portfolio_version_id=$1 ORDER BY run_at DESC LIMIT 1',[current.id])).rows[0]:null;
+    const currentJob=optimizationJob?.proposed_portfolio_version_id===current?.id&&optimizationJob?.backtest_run_id===currentBacktest?.id?optimizationJob:null;
+    const optimizationRun=currentJob&&!currentJob.optimization_run_id?null:latest.rows[0]??null;
+    return { optimizationRun, optimizationJob:currentJob };
   });
 
   async function compute(job:any,user:AuthenticatedUser,request:{id:string;ip:string},signal:AbortSignal,progress:(value:Record<string,unknown>)=>Promise<void>) {
@@ -190,6 +195,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       }else diagnostics.push({sleeve,weightOnly:solved.diagnostics});
       if(!solved.solutions.length)throw Object.assign(new Error('Search budget did not find a compliant solution'),{code:solved.outcome==='budget_exhausted'?'search_budget_exhausted':'search_no_candidate',diagnostics});
       // Independently recompute every retained result using the main backtest math.
+      await progress({phase:'validating',sleeve});
       for(const solution of solved.solutions) {
         const sum=solution.weights.reduce((s,w)=>s+w,0);
         if(Math.abs(sum-1)>1e-8||solution.weights.some(w=>!Number.isFinite(w)||w<=0||w>maxWeightPct/100+1e-10))throw new Error('Optimizer weight validation failed');
@@ -249,6 +255,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
         }),
       };
     }).filter(candidate=>{const signature=JSON.stringify(candidate.sleeveResults.map(item=>item.holdings.map(h=>[h.ticker,h.exchangeCode,h.proposedWeight])));if(candidateSignatures.has(signature))return false;candidateSignatures.add(signature);return true;});
+    await progress({phase:'persisting',completedSleeves:failedSleeves.length});
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -290,7 +297,8 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       `SELECT o.*, p.workflow_case_id, p.sleeve_target_version_id
          FROM optimization_runs o JOIN proposed_portfolio_versions p ON p.id = o.proposed_portfolio_version_id
          JOIN workflow_cases w ON w.id = p.workflow_case_id
-        WHERE o.id = $1 AND w.organization_id = $2 AND w.current_step = 'optimization'`, [runId, user.organizationId],
+        WHERE o.id = $1 AND w.organization_id = $2 AND w.current_step = 'optimization'
+          AND o.backtest_run_id=(SELECT id FROM backtest_runs WHERE proposed_portfolio_version_id=p.id ORDER BY run_at DESC LIMIT 1)`, [runId, user.organizationId],
     );
     if (!run.rows[0]) throw invalidState("Active optimization run not found");
     const constraints=jsonValue<Record<string,any>>(run.rows[0].constraints);
@@ -320,9 +328,9 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       const next = await client.query("SELECT COALESCE(max(version), 0)::int + 1 AS version FROM proposed_portfolio_versions WHERE workflow_case_id = $1", [run.rows[0].workflow_case_id]);
       const proposal = await client.query(
         `INSERT INTO proposed_portfolio_versions
-          (workflow_case_id, sleeve_target_version_id, version, status, created_by, submitted_at)
-         VALUES ($1, $2, $3, 'backtest_passed', $4, now()) RETURNING *`,
-        [run.rows[0].workflow_case_id, run.rows[0].sleeve_target_version_id, next.rows[0].version, user.id],
+          (workflow_case_id, sleeve_target_version_id, version, status, created_by, submitted_at,parent_version_id,change_summary)
+         VALUES ($1, $2, $3, 'backtest_passed', $4, now(),$5,$6) RETURNING *`,
+        [run.rows[0].workflow_case_id, run.rows[0].sleeve_target_version_id, next.rows[0].version, user.id,run.rows[0].proposed_portfolio_version_id,proposalChanges(original.rows,[...original.rows.filter(h=>!optimizedSleeves.has(h.sleeve)),...candidateHoldings.map(h=>({...h,weight:h.proposedWeight,locked:original.rows.find(old=>old.ticker===h.ticker&&old.exchange_code===h.exchangeCode)?.locked??false}))])],
       );
       for (const holding of original.rows.filter((item) => !optimizedSleeves.has(item.sleeve))) {
         await client.query(

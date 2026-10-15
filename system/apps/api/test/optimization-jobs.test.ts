@@ -46,6 +46,15 @@ describe('optimization background job and persistence',()=>{
   const stale=await app.inject({method:'POST',url:`/api/optimization-runs/${resultRun.id}/select`,payload:{candidateKey:resultRun.candidates[0].key}});expect(stale.statusCode).toBe(409);
   await state.db.query('UPDATE sleeve_target_versions SET targets=$2 WHERE id=$1',[sleeveId,JSON.stringify(targets)]);
  },20000);
+ it('persists a real worker exception with its stage and audit record even without console logging',async()=>{
+  const broken={equityTargets:targets.equityTargets.map((t:any)=>({...t,capm:null}))};
+  await state.db.query('UPDATE sleeve_target_versions SET targets=$2 WHERE id=$1',[sleeveId,JSON.stringify(broken)]);
+  const response=await app.inject({method:'POST',url:`/api/workflows/${workflowId}/optimization/runs`,payload:{}});
+  const result=await waitJob(response.json().optimizationJob.id);expect(result.optimizationJob.status).toBe('failed');
+  expect(result.optimizationJob.error_detail.reason).toMatch(/null|beta/i);expect(result.optimizationJob.error_detail.phase).toBe('running');expect(result.optimizationJob.error_detail.sleeve).toBe('us');
+  expect((await state.db.query("SELECT id FROM audit_events WHERE action='optimization.job.failed' AND entity_id=$1",[result.optimizationJob.id])).rows).toHaveLength(1);
+  await state.db.query('UPDATE sleeve_target_versions SET targets=$2 WHERE id=$1',[sleeveId,JSON.stringify(targets)]);
+ });
  it('accepts a verified plan while preserving locks, short-history linkage and untouched sleeves',async()=>{
   const result=await app.inject({method:'POST',url:`/api/optimization-runs/${resultRun.id}/select`,payload:{candidateKey:resultRun.candidates[0].key}});expect(result.statusCode,result.body).toBe(201);const id=result.json().proposedPortfolioVersion.id;
   const holdings=(await state.db.query('SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id=$1',[id])).rows;expect(holdings).toHaveLength(18);expect(holdings.filter((h:any)=>h.locked)).toHaveLength(3);
