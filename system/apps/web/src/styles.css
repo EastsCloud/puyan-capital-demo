@@ -997,6 +997,9 @@ th {
 .proposal-change-status strong { display: block; margin-top: 8px; }
 .proposal-history td { white-space: normal; min-width: 150px; }
 .proposal-modified { color: #906400; }
+.fill-explanation { display:block; min-width:180px; max-width:440px; white-space:normal; overflow-wrap:anywhere; margin-top:6px; }
+.fill-review-note { display:flex; flex-direction:column; gap:8px; flex:1 1 100%; }
+.fill-review-note textarea { min-height:80px; width:100%; }
 @media (max-width: 760px) {
   .proposal-history .proposal-toolbar label { flex: 0 0 auto; width: 100%; }
 }

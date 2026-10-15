@@ -3,6 +3,7 @@ export interface Security {
   id: string; ticker: string; exchange_code: string; name_en: string; name_zh: string;
   market: "US" | "JP" | "HK" | "CN_A"; sleeve: Sleeve; style: "growth" | "value"; source_url: string;
   data_coverage?: { observations: number; provider: string; status: string; checkedAt: string } | null;
+  updated_at?:string;trading_lot_size?:number|null;source_name?:string;
 }
 export interface Holding { tickerUniverseId: string; weight: number }
 export interface ConstructionPolicy { maxSingleSecurityWeightPct: number; styleTickerMin: number; styleTickerMax: number }

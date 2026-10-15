@@ -1,5 +1,15 @@
 # Isater Review Release Status
 
+## 2026-10-15: Security edits and explicit fill-difference explanations
+
+- Administrators can edit security reference data with a required reason, price/listing checks, optimistic concurrency, organization isolation, and before/after audit evidence. Shared entries receive team-specific overrides; historical approved snapshots are not rewritten.
+- Verified same-ticker, same-market venue corrections support future fill matching without treating all exchanges as interchangeable. An administrator must correct the reported COST/CRCL records in the deployed database, then generate a new preview/reimport affected fills.
+- Preview and saved fill results explain percentage tolerance, allowed amount, possible verified-lot rounding, and identity corrections. USD 25,900 against USD 225,000 is approximately 11.51%, exceeding the default 2%; no fixed USD 10,000 gate or automatic lot-based pass is introduced.
+- A different execution user must provide a written explanation when approving an exception batch. The decision and explanation are persisted without changing exception classifications or the original approved plan.
+- Additive migration 0026 requires no reset. 130 tests, type checks, production builds, local mocked desktop/mobile checks, and the compiled-optimizer memory smoke test passed. Production deployment and financial acceptance remain separate checks.
+
+Details: [Security Maintenance and Reconciliation](docs/security-maintenance-and-reconciliation.md).
+
 ## 2026-10-15: Revision without reset and durable error details
 
 - Execution users can return from backtest/optimization to proposal editing without clearing the annual cycle. Changed drafts create a new version; identical submissions reuse the current version. Existing approved and historical records remain intact.

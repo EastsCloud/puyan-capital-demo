@@ -44,3 +44,24 @@ describe("migrated operational controls", () => {
     ]));
   });
 });
+
+describe('percentage and trading-lot reconciliation evidence',()=>{
+  it('uses percentage limits rather than a 10000-dollar threshold',()=>{
+    const plan=[{ticker:'6861',exchangeCode:'TSE',side:'BUY' as const,targetValue:225000}];
+    const result=reconcileExecutionFills(plan,[{ticker:'6861',exchangeCode:'TSE',side:'BUY',quantity:500,price:398.2}],2,{lotSizes:{'6861|TSE':100}});
+    expect(result.lines[0]).toMatchObject({status:'exception',varianceValue:-25900,detail:{reason:'board_lot_rounding_review',lotSize:100,roundedQuantity:500,toleranceValue:4500,lotRoundingCandidate:true}});expect(result.lines[0].varianceRate).toBeCloseTo(-25900/225000);
+    expect(reconcileExecutionFills([{...plan[0],targetValue:10000000}],[{ticker:'6861',exchangeCode:'TSE',side:'BUY',quantity:1,price:9975000}],2).lines[0].status).toBe('matched');
+    expect(reconcileExecutionFills([{...plan[0],targetValue:100000}],[{ticker:'6861',exchangeCode:'TSE',side:'BUY',quantity:1,price:91000}],2).lines[0].status).toBe('exception');
+  });
+  it('does not excuse overspending, non-lot quantities or zero-value plans',()=>{
+    const p=[{ticker:'6861',exchangeCode:'TSE',side:'BUY' as const,targetValue:225000}],ref={lotSizes:{'6861|TSE':100}};
+    for(const quantity of [501,600]){const line=reconcileExecutionFills(p,[{ticker:'6861',exchangeCode:'TSE',side:'BUY',quantity,price:398.2}],2,ref).lines[0];expect(line.status).toBe('exception');expect(line.detail.lotRoundingCandidate).toBe(false);}
+    expect(reconcileExecutionFills([{...p[0],targetValue:0}],[{ticker:'6861',exchangeCode:'TSE',side:'BUY',quantity:0,price:1}],2).lines[0].status).toBe('exception');
+  });
+  it('uses only explicitly supplied identity corrections and retains source-plan identity',()=>{
+    const plan=[{ticker:'COST',exchangeCode:'NYSE',side:'BUY' as const,targetValue:1000}];const fills=[{ticker:'COST',exchangeCode:'NASDAQ',side:'BUY' as const,quantity:1,price:1000}];
+    expect(reconcileExecutionFills(plan,fills,2).summary.exceptions).toBe(2);
+    const result=reconcileExecutionFills(plan,fills,2,{corrections:[{id:'correction',oldTicker:'COST',oldExchange:'NYSE',ticker:'COST',exchangeCode:'NASDAQ'}]});
+    expect(result.lines[0]).toMatchObject({status:'matched',detail:{identityCorrections:[{id:'correction'}]}});expect(plan[0].exchangeCode).toBe('NYSE');
+  });
+});

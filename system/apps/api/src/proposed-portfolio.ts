@@ -69,7 +69,7 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
       [workflowId, user.organizationId],
     );
     if (!workflow.rows[0]) throw invalidState("Active workflow not found");
-    const universe = await pool.query("SELECT * FROM ticker_universe WHERE enabled = true AND (organization_id IS NULL OR organization_id = $1) ORDER BY sleeve, style, ticker", [user.organizationId]);
+    const universe = await pool.query("SELECT * FROM organization_security_catalog WHERE enabled = true AND catalog_organization_id=$1 ORDER BY sleeve, style, ticker", [user.organizationId]);
     const policy = await constructionPolicy(user.organizationId);
     const defaults: Array<{ tickerUniverseId: string; weight: number }> = [];
     for (const sleeve of ["us", "developedNonUs", "emerging"]) {
@@ -105,7 +105,7 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     if (!workflow.rows[0] || workflow.rows[0].current_step !== "proposed_portfolio") throw invalidState("Proposed portfolio is not the current workflow step");
     if (new Set(input.holdings.map((item) => item.tickerUniverseId)).size !== input.holdings.length) throw invalidState("A ticker can appear only once");
     const universe = await pool.query(
-      "SELECT * FROM ticker_universe WHERE enabled = true AND id = ANY($1::uuid[]) AND (organization_id IS NULL OR organization_id = $2)",
+      "SELECT * FROM organization_security_catalog WHERE enabled = true AND id = ANY($1::uuid[]) AND catalog_organization_id=$2",
       [input.holdings.map((item) => item.tickerUniverseId), user.organizationId],
     );
     if (universe.rows.length !== input.holdings.length) throw invalidState("One or more tickers are not in the approved universe");

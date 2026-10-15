@@ -5,7 +5,8 @@ import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
 import { config } from "./config.js";
-import { reconcileExecutionFills } from "./operational-math.js";
+import { reconcileExecutionFills,correctedSecurity } from "./operational-math.js";
+import {reconciliationReference} from './security-catalog.js';
 import { assertDifferentReviewer } from "@isater/domain";
 
 const fillSchema = z.object({
@@ -27,6 +28,7 @@ const fillBatchSchema = z.object({
 
 const fillReviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
+  note:z.string().trim().max(2000).optional(),
 });
 
 const cashFlowSchema = z.object({
@@ -163,7 +165,7 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
                   'quantity', l.quantity, 'price', l.price, 'tradeValue', l.trade_value,
                   'externalTradeId', l.external_trade_id, 'plannedValue', l.planned_value,
                   'varianceValue', l.variance_value, 'varianceRate', l.variance_rate,
-                  'status', l.reconciliation_status
+                  'status', l.reconciliation_status,'detail',l.reconciliation_detail
                 ) ORDER BY l.ticker) FILTER (WHERE l.id IS NOT NULL), '[]') AS lines
            FROM execution_fill_batches b
            JOIN source_files sf ON sf.id = b.source_file_id
@@ -180,16 +182,17 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       ),
       pool.query(
         `SELECT ticker, exchange_code, name_en, name_zh, market
-           FROM ticker_universe
-          WHERE enabled = true AND (organization_id IS NULL OR organization_id = $1)
+           FROM organization_security_catalog
+          WHERE enabled = true AND catalog_organization_id=$1
           ORDER BY ticker, exchange_code`,
         [user.organizationId],
       ),
     ]);
     const payload = actionResult.rows[0] ? jsonValue<{ orders?: Array<Record<string, unknown>> }>(actionResult.rows[0].payload) : {};
+    const reference=await reconciliationReference(user.organizationId);
     return {
       workflowStep: workflow.rows[0].current_step,
-      approvedOrders: payload.orders ?? [],
+      approvedOrders: (payload.orders??[]).map((order:any)=>({...order,...correctedSecurity(order.ticker,order.exchangeCode??order.market,reference.corrections)})),
       securityOptions: securitiesResult.rows,
       latestFillBatch: batchResult.rows[0] ? { ...batchResult.rows[0], summary: jsonValue(batchResult.rows[0].summary), lines: jsonValue(batchResult.rows[0].lines) } : null,
       cashFlows: cashResult.rows,
@@ -215,7 +218,7 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
     );
     if (!action.rows[0]) throw invalidState("An approved maker-checker implementation plan is required");
     const planned = jsonValue<{ orders?: Array<any> }>(action.rows[0].payload).orders ?? [];
-    const { lines, summary } = reconcileExecutionFills(planned, input.fills, input.valueTolerancePct);
+    const { lines, summary } = reconcileExecutionFills(planned, input.fills, input.valueTolerancePct,await reconciliationReference(user.organizationId));
     return {
       preview: {
         importedLines: lines.slice(0, input.fills.length),
@@ -246,7 +249,7 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       );
       if (!action.rows[0]) throw invalidState("An approved maker-checker implementation plan is required");
       const planned = jsonValue<{ orders?: Array<any> }>(action.rows[0].payload).orders ?? [];
-      const { lines, summary } = reconcileExecutionFills(planned, input.fills, input.valueTolerancePct);
+      const { lines, summary } = reconcileExecutionFills(planned, input.fills, input.valueTolerancePct,await reconciliationReference(user.organizationId,client));
       const exceptions = summary.exceptions;
       const sha = createHash("sha256").update(input.content).digest("hex");
       const source = await client.query(
@@ -260,9 +263,9 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
         [workflowId, source.rows[0].id, input.businessDate, exceptions ? "exceptions" : "matched", JSON.stringify(summary), user.id],
       );
       for (const line of lines) await client.query(
-        `INSERT INTO execution_fill_lines (batch_id,ticker,exchange_code,side,quantity,price,trade_value,external_trade_id,planned_value,variance_value,variance_rate,reconciliation_status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [batch.rows[0].id, line.ticker, line.exchangeCode, line.side, line.quantity, line.price, line.tradeValue, line.externalTradeId ?? null, line.plannedValue, line.varianceValue, line.varianceRate, line.status],
+        `INSERT INTO execution_fill_lines (batch_id,ticker,exchange_code,side,quantity,price,trade_value,external_trade_id,planned_value,variance_value,variance_rate,reconciliation_status,reconciliation_detail)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [batch.rows[0].id, line.ticker, line.exchangeCode, line.side, line.quantity, line.price, line.tradeValue, line.externalTradeId ?? null, line.plannedValue, line.varianceValue, line.varianceRate, line.status,JSON.stringify(line.detail)],
       );
       await writeAudit(client, { organizationId: user.organizationId, actorUserId: user.id, action: "execution.fills.import", entityType: "execution_fill_batch", entityId: batch.rows[0].id, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: summary });
       await client.query("COMMIT");
@@ -288,14 +291,15 @@ export async function registerOperationalRoutes(app: FastifyInstance): Promise<v
       const batch = result.rows[0];
       if (!batch || batch.review_status !== "pending_review") throw invalidState("Pending execution fill batch not found");
       assertDifferentReviewer(batch.imported_by, user.id);
+      if(batch.status==='exceptions'&&input.decision==='approve'&&(!input.note||input.note.length<5))throw invalidState('存在成交差异，请填写至少5字的复核说明，例如整手限制及核实依据。');
       const reviewStatus = input.decision === "approve" ? "approved" : "rejected";
       const updated = await client.query(
         `UPDATE execution_fill_batches
-            SET review_status = $2, reviewed_by = $3, reviewed_at = now()
+            SET review_status = $2, reviewed_by = $3, reviewed_at = now(),review_note=$4
           WHERE id = $1 RETURNING *`,
-        [batchId, reviewStatus, user.id],
+        [batchId, reviewStatus, user.id,input.note??null],
       );
-      await writeAudit(client, { organizationId: user.organizationId, actorUserId: user.id, action: "execution.fills.review", entityType: "execution_fill_batch", entityId: batchId, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: { decision: input.decision, importer: batch.imported_by } });
+      await writeAudit(client, { organizationId: user.organizationId, actorUserId: user.id, action: "execution.fills.review", entityType: "execution_fill_batch", entityId: batchId, outcome: "allowed", requestId: request.id, ipAddress: request.ip, detail: { decision: input.decision, importer: batch.imported_by,note:input.note??null,reconciliationStatusUnchanged:true } });
       await client.query("COMMIT");
       return { fillBatch: updated.rows[0] };
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }

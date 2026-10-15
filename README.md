@@ -20,6 +20,7 @@ Live demo: [demo.puyancapital.com](https://demo.puyancapital.com)
 - Per-run execution confirmation using checked-price snapshots, immutable database evidence, and short-history disclosures
 - Memory-bounded background optimization with durable progress, duplicate protection, and independent risk revalidation
 - Pre-approval portfolio revision without reset, explicit modified/unchanged states, version comparison, and persisted failure diagnostics
+- Audited administrator security edits, organization-scoped venue corrections, percentage/lot reconciliation explanations, and documented two-person exception review
 - Effective-dated parameters, versioned reports, performance attribution, delivery records, and import registry
 - Responsive Chinese/English interface for desktop and mobile browsers
 
@@ -46,6 +47,7 @@ See [Proposed Portfolio Import](docs/proposed-portfolio-import.md) for the saved
 See [Historical Data Coverage](docs/historical-data-coverage.md) for provider selection, completed-week alignment, the standard history gate, and explicit short-history exceptions.
 See [Bounded Background Optimization](docs/optimizer-search.md) for search budgets, worker isolation, job recovery, validation, and model limitations.
 See [Portfolio Iterations](docs/proposal-iterations.md) for repeatable proposal editing, backtesting, historical comparisons, and task-error diagnosis.
+See [Security Maintenance and Reconciliation](docs/security-maintenance-and-reconciliation.md) for security edits, venue correction, trading lots, and percentage-based fill review.
 
 ## Local setup
 

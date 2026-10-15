@@ -116,7 +116,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const maxWeightPct = Number(parameters.portfolioConstruction?.maxSingleSecurityWeightPct ?? 35);
     const priorBenchmarkManifest = jsonValue<{ sleeves: Record<SleeveKey, Array<{ symbol: string; weight: number }>> }>(prior.rows[0].benchmark_manifest);
     const universeResult = await pool.query(
-      "SELECT * FROM ticker_universe WHERE enabled = true AND sleeve = ANY($1::text[]) AND (organization_id IS NULL OR organization_id = $2) ORDER BY sleeve, style, ticker",
+      "SELECT * FROM organization_security_catalog WHERE enabled = true AND sleeve = ANY($1::text[]) AND catalog_organization_id=$2 ORDER BY sleeve, style, ticker",
       [failedSleeves, user.organizationId],
     );
     const normalizeHolding = (item: any, defaultWeight = 0): OptimizerHolding => ({
