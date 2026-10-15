@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { ProposedPortfolioEditor } from "./ProposedPortfolioEditor";
 import { SecuritiesPage } from "./SecuritiesPage";
 import { apiErrorMessage } from "./api-error";
+import { isSessionExpiry, sessionExpiryMessage } from "./api-session";
 import { HistoryCoveragePanel, ShortHistoryNotice, type HistoryReport, type ShortHistoryConfirmation } from "./HistoryCoveragePanel";
 import type { Holding } from "./proposed-portfolio-model";
 import {
@@ -222,6 +223,7 @@ interface OptimizationRun {
   candidates: OptimizationCandidate[];
   selected_candidate_key: string | null;
 }
+interface OptimizationJob { id:string;status:'queued'|'preparing'|'running'|'succeeded'|'no_candidate'|'failed'|'interrupted';message:string|null;error_code:string|null;progress:{phase?:string;sleeve?:string;evaluations?:number;candidateSets?:number;completedSleeves?:number;totalSleeves?:number;replacementPricesLoaded?:number;replacementPriceLimit?:number} }
 
 function optimizationSleeveResults(candidate: OptimizationCandidate): NonNullable<OptimizationCandidate["sleeveResults"]> {
   if (candidate.sleeveResults) return candidate.sleeveResults;
@@ -458,17 +460,20 @@ function reportApiActivity(delta: 1 | -1) {
   window.dispatchEvent(new CustomEvent("isater:api-activity", { detail: activeApiRequests }));
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  reportApiActivity(1);
+async function api<T>(path: string, init?: RequestInit, quiet = false): Promise<T> {
+  if(!quiet) reportApiActivity(1);
   const headers = new Headers(init?.headers);
   if (init?.body) headers.set("Content-Type", "application/json");
   try {
     const response = await fetch(path, { credentials: "include", ...init, headers });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(apiErrorMessage(body, `HTTP ${response.status}`)), { code: body.error, body });
+    if (!response.ok) {
+      if (isSessionExpiry(path, response.status)) window.dispatchEvent(new CustomEvent("isater:session-expired"));
+      throw Object.assign(new Error(isSessionExpiry(path, response.status) ? sessionExpiryMessage(localStorage.getItem("isater-locale") ?? "zh-CN") : apiErrorMessage(body, `HTTP ${response.status}`)), { code: body.error, body, statusCode: response.status });
+    }
     return body as T;
   } finally {
-    reportApiActivity(-1);
+    if(!quiet) reportApiActivity(-1);
   }
 }
 
@@ -485,7 +490,7 @@ function Brand({ inverted = false }: { inverted?: boolean }) {
   </div>;
 }
 
-function Login({ locale, onLocale, onAuthenticated }: { locale: Locale; onLocale: (locale: Locale) => void; onAuthenticated: (user: User) => void }) {
+function Login({ locale, onLocale, onAuthenticated, notice }: { locale: Locale; onLocale: (locale: Locale) => void; onAuthenticated: (user: User) => void; notice?: string }) {
   const text = copy[locale];
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -503,6 +508,7 @@ function Login({ locale, onLocale, onAuthenticated }: { locale: Locale; onLocale
       <div className="login-context"><span className="context-line" /><p>Puyan Capital</p><h1>isater</h1></div>
       <form onSubmit={submit} className="login-form">
         <h2 id="login-title">{text.signIn}</h2>
+        {notice && <p className="form-error" role="alert">{notice}</p>}
         <label><span>{text.username}</span><input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required /></label>
         <label><span>{text.password}</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required /></label>
         {error && <p className="form-error" role="alert">{error}</p>}
@@ -1199,12 +1205,20 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
   const [backtestContext, setBacktestContext] = useState<BacktestContext | null>(null);
   const [historyCoverage, setHistoryCoverage] = useState<HistoryReport | null>(null);
   const [optimizationRun, setOptimizationRun] = useState<OptimizationRun | null>(null);
+  const [optimizationJob,setOptimizationJob]=useState<OptimizationJob|null>(null);
+  const optimizationRunning=Boolean(optimizationJob&&['queued','preparing','running'].includes(optimizationJob.status));
   const [portfolioApprovalContext, setPortfolioApprovalContext] = useState<PortfolioApprovalContext | null>(null);
   const [implementationContext, setImplementationContext] = useState<ImplementationContext | null>(null);
   const [approvalRound, setApprovalRound] = useState<ApprovalRound | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const displayStep = viewedStep ?? (workflow?.current_step as AnnualStep | undefined) ?? null;
+  useEffect(()=>{
+    if(!workflow||displayStep!=='optimization'||!optimizationJob||!optimizationRunning)return;
+    let stopped=false;let timer:ReturnType<typeof setTimeout>;
+    const poll=async()=>{try{const result=await api<{optimizationJob:OptimizationJob;optimizationRun:OptimizationRun|null}>(`/api/workflows/${workflow.id}/optimization/jobs/${optimizationJob.id}`,undefined,true);if(stopped)return;setOptimizationJob(result.optimizationJob);if(result.optimizationRun)setOptimizationRun(result.optimizationRun);if(!['queued','preparing','running'].includes(result.optimizationJob.status)){setMessage(result.optimizationJob.message??(zh?'优化任务已结束。':'Optimization task finished.'));return;}}catch(reason){if(stopped)return;setMessage(zh?'暂时无法读取优化进度，正在重试；请勿重复提交。':'Progress temporarily unavailable; retrying. Do not submit again.');}if(!stopped)timer=setTimeout(poll,1500);};
+    timer=setTimeout(poll,750);return()=>{stopped=true;clearTimeout(timer);};
+  },[workflow?.id,displayStep,optimizationJob?.id,optimizationJob?.status,optimizationRunning,zh]);
   useEffect(() => { setHistoryCoverage(null); }, [workflow?.id, displayStep]);
   const viewStep = (step: AnnualStep | null) => {
     if (proposalDirty && step !== displayStep && !window.confirm(zh ? "拟持仓尚未保存，离开会放弃草稿。确定离开？" : "Unsaved proposed holdings will be discarded. Leave this step?")) return;
@@ -1235,7 +1249,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
         ? api<BacktestContext>(`/api/workflows/${workflow.id}/backtest/context`).then(setBacktestContext)
         : Promise.resolve(),
       displayStep === "optimization"
-        ? api<{ optimizationRun: OptimizationRun | null }>(`/api/workflows/${workflow.id}/optimization/context`).then((result) => setOptimizationRun(result.optimizationRun))
+        ? api<{ optimizationRun: OptimizationRun | null;optimizationJob:OptimizationJob|null }>(`/api/workflows/${workflow.id}/optimization/context`).then((result) => {setOptimizationRun(result.optimizationRun);setOptimizationJob(result.optimizationJob??null);})
         : Promise.resolve(),
       displayStep === "portfolio_approval"
         ? api<PortfolioApprovalContext>(`/api/workflows/${workflow.id}/portfolio-approval/context`).then(setPortfolioApprovalContext)
@@ -1382,9 +1396,9 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
     if (!workflow) return;
     setBusy(true); setMessage(zh ? "正在按 Sleeve 独立求解，先只调整现有股票权重。" : "Solving each sleeve independently, starting with weight-only changes.");
     try {
-      const result = await api<{ optimizationRun: OptimizationRun }>(`/api/workflows/${workflow.id}/optimization/runs`, { method: "POST", body: "{}" });
-      setOptimizationRun(result.optimizationRun);
-      setMessage(zh ? "已生成三组通过控制的优化方案。" : "Three passing optimization candidates are ready.");
+      const result = await api<{ optimizationJob?:OptimizationJob;optimizationRun?: OptimizationRun }>(`/api/workflows/${workflow.id}/optimization/runs`, { method: "POST", body: "{}" });
+      if(result.optimizationJob){setOptimizationJob(result.optimizationJob);setOptimizationRun(null);setMessage(zh?'优化已转入后台，可查看进度或离开页面，稍后回来查看结果。':'Optimization is running in the background. You may leave and return to view the result.');}
+      if(result.optimizationRun){setOptimizationRun(result.optimizationRun);setMessage(zh?'可行方案已生成。':'Feasible candidates are ready.');}
     } catch (reason) { setMessage(zh ? `优化失败：${(reason as Error).message}` : `Optimization failed: ${(reason as Error).message}`); }
     finally { setBusy(false); }
   }
@@ -1491,19 +1505,19 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       {displayStep === "backtest" && backtestContext && <section className="annual-data-panel backtest-panel">
         <header><div><span className="section-label">{zh ? "真实历史回测" : "Historical backtest"}</span><h3>{backtestContext.backtestRun?.data_manifest.shortHistoryConfirmation ? (zh ? `${backtestContext.backtestRun.data_manifest.shortHistoryConfirmation.commonWeeks} 个共同周价格 · 短历史回测` : `${backtestContext.backtestRun.data_manifest.shortHistoryConfirmation.commonWeeks} common weekly prices · short-history backtest`) : (zh ? `${backtestContext.policy.months} 个月 · 周度 · 分 Sleeve 检查` : `${backtestContext.policy.months} months · weekly · sleeve-level controls`)}</h3></div>{backtestContext.backtestRun && <strong className={backtestContext.backtestRun.hard_control_pass ? "result-pass" : "result-fail"}>{backtestContext.backtestRun.hard_control_pass ? (zh ? "通过" : "PASS") : (zh ? "需要优化" : "OPTIMIZATION REQUIRED")}</strong>}</header>
         <p className="readonly-note">{zh ? "EODHD为首选；日本个股目前使用Yahoo后备源。历史不足时可由执行人员明确确认使用现有区间，不会自动剔除股票或使用样本价格。" : "EODHD is primary; Tokyo listings currently use Yahoo fallback. Execution team can explicitly confirm a shorter window. No securities are silently excluded and no sample prices are used."}</p>
-        {viewIsCurrent && user.role === "execution_team" && <div className="proposal-toolbar"><button className="secondary-button compact" onClick={checkBacktestCoverage} disabled={busy}>{zh ? "检查全部价格覆盖" : "Check all price coverage"}</button>{backtestContext.backtestRun && <button className="secondary-button compact" onClick={() => void runBacktest()} disabled={busy}>{zh ? "重新运行真实历史回测" : "Rerun historical backtest"}</button>}</div>}
-        {(historyCoverage ?? backtestContext.backtestRun?.data_manifest.coverageReport) && <HistoryCoveragePanel report={(historyCoverage ?? backtestContext.backtestRun!.data_manifest.coverageReport)!} zh={zh} />}
-        {viewIsCurrent && user.role === "execution_team" && historyCoverage?.shortHistory?.eligible && !historyCoverage.shortHistory.accepted && <button className="secondary-button compact" onClick={confirmShortHistory} disabled={busy}>{zh ? "确认使用现有历史回测（记录确认）" : "Confirm available-history backtest (record consent)"}</button>}
+        {viewIsCurrent && user.role === "execution_team" && <div className="proposal-toolbar"><button className="secondary-button compact" onClick={checkBacktestCoverage} disabled={busy}>{zh ? "检查全部价格覆盖" : "Check all price coverage"}</button>{<button className="secondary-button compact" onClick={() => void runBacktest()} disabled={busy}>{backtestContext.backtestRun ? (zh ? "重新运行真实历史回测" : "Rerun historical backtest") : (zh ? "运行真实历史回测" : "Run historical backtest")}</button>}</div>}
+        {(historyCoverage ?? backtestContext.backtestRun?.data_manifest.coverageReport) && <HistoryCoveragePanel report={(historyCoverage ?? backtestContext.backtestRun!.data_manifest.coverageReport)!} zh={zh} onConfirm={viewIsCurrent && user.role === "execution_team" ? confirmShortHistory : undefined} busy={busy} />}
         <ShortHistoryNotice confirmation={backtestContext.backtestRun?.data_manifest.shortHistoryConfirmation} zh={zh} />
-        {!backtestContext.backtestRun ? <div className="backtest-ready"><div><strong>{zh ? "检查 Beta、收益率下限与最大回撤" : "Check beta, return floor and maximum drawdown"}</strong><span>{zh ? "收益率只设下限；高于目标不会判定失败。每个 Sleeve 使用对应市场基准。" : "Return is a floor. Each sleeve uses its own market benchmark."}</span></div>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={() => void runBacktest()} disabled={busy}>{busy ? (zh ? "正在回测" : "Running") : (zh ? "运行真实历史回测" : "Run historical backtest")}</button>}</div> : <>
+        {!backtestContext.backtestRun ? <div className="backtest-ready"><div><strong>{zh ? "检查 Beta、收益率下限与最大回撤" : "Check beta, return floor and maximum drawdown"}</strong><span>{zh ? "收益率只设下限；高于目标不会判定失败。每个 Sleeve 使用对应市场基准。" : "Return is a floor. Each sleeve uses its own market benchmark."}</span></div></div> : <>
           <div className="table-wrap"><table><thead><tr><th>Sleeve</th><th>{zh ? "年化收益 / 目标" : "Return / target"}</th><th>Beta / {zh ? "目标" : "target"}</th><th>{zh ? "最大回撤 / 限制" : "Drawdown / limit"}</th><th>{zh ? "结果" : "Result"}</th></tr></thead><tbody>{backtestContext.backtestRun.metrics.sleeves.map((metric) => <tr key={metric.sleeve}><td><strong>{sleeveLabels[metric.sleeve]}</strong><small>{metric.observationCount} {zh ? "周" : "weeks"}</small></td><td>{pct(metric.annualizedReturn)} / {pct(metric.targetReturn)}<small className={`status-${metric.returnControl.status}`}>{metric.returnControl.status}</small></td><td>{metric.beta.toFixed(2)} / {metric.targetBeta.toFixed(2)}<small className={`status-${metric.betaControl.status}`}>{metric.betaControl.status}</small></td><td>{pct(metric.maximumDrawdown)} / {pct(metric.maximumDrawdownLimit)}<small className={`status-${metric.drawdownControl.status}`}>{metric.drawdownControl.status}</small></td><td><strong className={metric.hardPass ? "result-pass" : "result-fail"}>{metric.hardPass ? (zh ? "通过" : "Pass") : (zh ? "未通过" : "Fail")}</strong></td></tr>)}</tbody></table></div>
           <details className="source-details"><summary>{zh ? "查看数据范围与来源" : "View coverage and sources"}</summary><p>{backtestContext.backtestRun.start_date} – {backtestContext.backtestRun.end_date}；{backtestContext.backtestRun.data_manifest.provider}。{zh ? `首选源状态：${backtestContext.backtestRun.data_manifest.primaryProviderStatus}；实际来源按明细显示，历史价格已保存。` : `Primary status: ${backtestContext.backtestRun.data_manifest.primaryProviderStatus}. Actual providers are recorded per symbol; historical prices were persisted.`}</p></details>
           {viewIsCurrent && user.role === "execution_team" && <div className="approval-actions"><button className="primary-button compact" onClick={recordBacktestOutcome} disabled={busy}>{backtestContext.backtestRun.hard_control_pass ? (zh ? "确认并进入审批" : "Confirm and open approval") : (zh ? "确认并进入优化" : "Confirm and optimize")}</button></div>}
         </>}
       </section>}
       {displayStep === "optimization" && <section className="annual-data-panel optimization-panel">
-        <header><div><span className="section-label">{zh ? "逐 Sleeve 优化" : "Sleeve-level optimization"}</span><h3>{zh ? "先改权重；无解时才最少更换 Ticker" : "Weights first; minimum ticker replacement only if needed"}</h3></div></header>
-        {!optimizationRun ? <div className="backtest-ready"><div><strong>{zh ? "按 Sleeve 独立求解" : "Solve each sleeve independently"}</strong><span>{zh ? "先调整原股票权重；无解时按最少换票原则搜索。已通过的 Sleeve 保持不变。" : "Reweight existing names first, then search the minimum number of replacements. Passing sleeves stay unchanged."}</span></div>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={runOptimization} disabled={busy}>{busy ? (zh ? "正在优化" : "Optimizing") : (zh ? "生成三组优化方案" : "Generate three candidates")}</button>}</div> : <div className="optimization-grid">{optimizationRun.candidates.map((candidate) => <article key={candidate.key} className="optimization-card"><header><span>{candidate.label}</span><strong>{candidate.sleeveResults ? (zh ? "完整方案" : "Complete plan") : (candidate.sleeve ? sleeveLabels[candidate.sleeve] : "")}</strong></header>{optimizationSleeveResults(candidate).map((result) => <section className="optimization-sleeve" key={result.sleeve}><h4>{sleeveLabels[result.sleeve]}</h4><dl><div><dt>Beta</dt><dd>{result.metrics.beta.toFixed(3)}</dd></div><div><dt>{zh ? "收益率" : "Return"}</dt><dd>{pct(result.metrics.annualizedReturn)}</dd></div><div><dt>{zh ? "最大回撤" : "Max drawdown"}</dt><dd>{pct(result.metrics.maximumDrawdown)}</dd></div><div><dt>{zh ? "单边换手" : "One-way turnover"}</dt><dd>{pct(result.turnover)}</dd></div></dl><div className="weight-changes">{result.holdings.filter((holding) => Math.abs(holding.proposedWeight - holding.currentWeight) > 0.0001).map((holding) => <span key={holding.ticker}><b>{holding.ticker}</b>{pct(holding.currentWeight)} → {pct(holding.proposedWeight)}</span>)}</div></section>)}<footer><span>{candidate.tickerReplacements === 0 ? (zh ? "不更换 Ticker" : "No ticker replacement") : (zh ? `最少更换共 ${candidate.tickerReplacements} 支` : `${candidate.tickerReplacements} minimum replacements`)}</span>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={() => selectOptimization(candidate.key)} disabled={busy}>{zh ? "接受并提交审批" : "Accept and submit"}</button>}</footer></article>)}</div>}
+        <header><div><span className="section-label">{zh ? "逐 Sleeve 优化" : "Sleeve-level optimization"}</span><h3>{zh ? "先调权重，再预算内搜索少量换股" : "Bounded weight search, then limited replacements"}</h3></div></header>
+        {optimizationJob && <div className="readonly-note" role="status"><strong>{optimizationRunning ? (zh ? '优化正在后台运行，请勿重复提交' : 'Optimization is running; do not submit again') : (zh ? `优化任务：${optimizationJob.status}` : `Optimization job: ${optimizationJob.status}`)}</strong><p>{optimizationJob.message ?? (zh ? '可离开页面，返回后会恢复进度。任务有时间和内存预算。' : 'You may leave and return. Time and memory budgets are enforced.')}</p><small>{optimizationJob.progress.sleeve ?? ''} · {optimizationJob.progress.phase ?? optimizationJob.status} · {optimizationJob.progress.evaluations ?? 0} {zh ? '次评估' : 'evaluations'}</small></div>}
+        {!optimizationRun ? <div className="backtest-ready"><div><strong>{zh ? "按 Sleeve 独立求解" : "Solve each sleeve independently"}</strong><span>{zh ? "保留已通过的 Sleeve；后台限时搜索，最多提供三组通过复核的方案，不保证全局最优。" : "Passing sleeves stay unchanged. Bounded background search returns up to three independently verified plans, not a global optimum."}</span></div>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={runOptimization} disabled={busy || optimizationRunning}>{(busy || optimizationRunning) ? (zh ? "正在后台优化" : "Running in background") : (zh ? "开始优化（最多三组）" : "Start optimization (up to three)")}</button>}</div> : <div className="optimization-grid">{optimizationRun.candidates.map((candidate) => <article key={candidate.key} className="optimization-card"><header><span>{candidate.label}</span><strong>{candidate.sleeveResults ? (zh ? "完整方案" : "Complete plan") : (candidate.sleeve ? sleeveLabels[candidate.sleeve] : "")}</strong></header>{optimizationSleeveResults(candidate).map((result) => <section className="optimization-sleeve" key={result.sleeve}><h4>{sleeveLabels[result.sleeve]}</h4><dl><div><dt>Beta</dt><dd>{result.metrics.beta.toFixed(3)}</dd></div><div><dt>{zh ? "收益率" : "Return"}</dt><dd>{pct(result.metrics.annualizedReturn)}</dd></div><div><dt>{zh ? "最大回撤" : "Max drawdown"}</dt><dd>{pct(result.metrics.maximumDrawdown)}</dd></div><div><dt>{zh ? "单边换手" : "One-way turnover"}</dt><dd>{pct(result.turnover)}</dd></div></dl><div className="weight-changes">{result.holdings.filter((holding) => Math.abs(holding.proposedWeight - holding.currentWeight) > 0.0001).map((holding) => <span key={holding.ticker}><b>{holding.ticker}</b>{pct(holding.currentWeight)} → {pct(holding.proposedWeight)}</span>)}</div></section>)}<footer><span>{candidate.tickerReplacements === 0 ? (zh ? "不更换 Ticker" : "No ticker replacement") : (zh ? `本方案更换 ${candidate.tickerReplacements} 支` : `${candidate.tickerReplacements} replacements in this plan`)}</span>{viewIsCurrent && user.role === "execution_team" && <button className="primary-button compact" onClick={() => selectOptimization(candidate.key)} disabled={busy || optimizationRunning}>{zh ? "接受并提交审批" : "Accept and submit"}</button>}</footer></article>)}</div>}
       </section>}
       {displayStep === "portfolio_approval" && portfolioApprovalContext && <section className="annual-data-panel portfolio-approval-panel">
         <ShortHistoryNotice confirmation={portfolioApprovalContext.portfolio.data_manifest?.shortHistoryConfirmation} zh={zh} />
@@ -1643,13 +1657,15 @@ export function App() {
   const savedLocale = localStorage.getItem("isater-locale");
   const [locale, setLocale] = useState<Locale>(savedLocale === "en" ? "en" : "zh-CN");
   const [user, setUser] = useState<User | null>(null); const [loading, setLoading] = useState(true); const [activeRequests, setActiveRequests] = useState(0);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  useEffect(() => { const listener = () => { if (user) { setSessionExpired(true); setUser(null); } }; window.addEventListener("isater:session-expired", listener); return () => window.removeEventListener("isater:session-expired", listener); }, [user]);
   useEffect(() => { api<{ user: User }>("/api/auth/me").then((r) => setUser(r.user)).catch(() => setUser(null)).finally(() => setLoading(false)); }, []);
   useEffect(() => { const listener = (event: Event) => setActiveRequests(Number((event as CustomEvent<number>).detail ?? 0)); window.addEventListener("isater:api-activity", listener); return () => window.removeEventListener("isater:api-activity", listener); }, []);
   const changeLocale = useMemo(() => (next: Locale) => { localStorage.setItem("isater-locale", next); document.documentElement.lang = next; setLocale(next); }, []);
   async function logout() { await api("/api/auth/logout", { method: "POST" }).catch(() => undefined); setUser(null); }
   async function passwordChanged() { const result = await api<{ user: User }>("/api/auth/me"); setUser(result.user); }
   const content = loading ? <div className="loading-screen"><div className="loading-mark">I</div></div>
-    : !user ? <Login locale={locale} onLocale={changeLocale} onAuthenticated={setUser} />
+    : !user ? <Login locale={locale} onLocale={changeLocale} onAuthenticated={(next) => { setSessionExpired(false); setUser(next); }} notice={sessionExpired ? sessionExpiryMessage(locale) : undefined} />
       : user.mustChangePassword ? <ChangePassword user={user} locale={locale} onLocale={changeLocale} onChanged={passwordChanged} />
         : <Workspace user={user} locale={locale} onLocale={changeLocale} onLogout={logout} />;
   return <>{content}{!loading && activeRequests > 0 && <div className="global-loading-overlay" role="status" aria-live="polite" aria-busy="true"><div><LoaderCircle size={34} /><strong>{locale === "zh-CN" ? "正在安全处理" : "Processing securely"}</strong><span>{locale === "zh-CN" ? "请等待完成，不要重复提交或关闭页面。" : "Please wait; do not resubmit or close this page."}</span></div></div>}</>;

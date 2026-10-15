@@ -1,5 +1,16 @@
 # Isater Review Release Status
 
+## 2026-10-14: Memory-bounded background optimization
+
+- Replaced eager weight-vector and replacement-combination enumeration with a bounded coordinate search and lazy replacement candidates. The previous enumeration could exhaust the small server heap and cause HTTP 502. The new solver is heuristic, not a proof of global optimality or infeasibility.
+- Optimization submits a short HTTP 202 request, runs CPU work in an isolated memory-limited worker, saves progress/outcomes to PostgreSQL, prevents duplicate concurrent jobs, and recovers expired worker leases. Users can refresh or return to see progress.
+- Existing risk controls, locked holdings, unchanged passing sleeves, approved market allocations, accepted price windows, and committee approval remain enforced. Every retained candidate is independently recalculated before persistence; stale proposal/target/policy acceptance is rejected.
+- Browser session expiry now slides with server expiry; expired API sessions return to sign-in with a saved-data notice. Backtest controls and explicit available-history confirmation appear above the long coverage table.
+- Migration 0024 is additive. No database reset or new external service is required. The existing Render migrate/build/start workflow applies it after deployment from the private repository.
+- Verification: 108 tests, type checks, and production builds passed. Compiled-worker stress checks under a 256 MB parent Node heap cover 6/12/20 holdings and a bounded unsuccessful replacement search. Local mocked desktop/mobile browser checks cover progress, refresh, retry, session expiry, and import/backtest regressions. These results do not imply live-production financial-model acceptance.
+
+Details and limitations: [Bounded Background Optimization](docs/optimizer-search.md).
+
 ## 2026-10-13: Checked-price snapshot confirmation fix
 
 - Short-history confirmation now uses the exact prices checked earlier, stored in PostgreSQL for a 30-minute confirmation window. It does not make a second provider request or reject harmless provider-price fluctuations.

@@ -18,7 +18,7 @@ export interface HistoryReport {
   sleeves: Array<{ sleeve: string; commonWeeks: number }>;
   issues: Array<{ symbol: string; code: string; message: string }>;
 }
-type HistoryOptions = { allowShort?: boolean; asOf?: Date; fetcher?: typeof fetch };
+type HistoryOptions = { allowShort?: boolean; asOf?: Date; fetcher?: typeof fetch; signal?: AbortSignal };
 export function weekKey(timestampSeconds: number): string {
   const date = new Date(timestampSeconds * 1000);
   date.setUTCHours(0, 0, 0, 0);
@@ -64,7 +64,7 @@ export async function fetchYahooSeries(symbol: string, options: HistoryOptions =
   url.searchParams.set('interval', '1d'); url.searchParams.set('events', 'history'); url.searchParams.set('includeAdjustedClose', 'true');
   let response: Response | undefined;
   for (let attempt = 0; attempt < 3; attempt++) {
-    response = await (options.fetcher ?? fetch)(url, { headers: { 'User-Agent': 'Mozilla/5.0 Isater/0.1' }, signal: AbortSignal.timeout(25000) });
+    response = await (options.fetcher ?? fetch)(url, { headers: { 'User-Agent': 'Mozilla/5.0 Isater/0.1' }, signal: options.signal ? AbortSignal.any([options.signal,AbortSignal.timeout(25000)]) : AbortSignal.timeout(25000) });
     if (response.ok) break;
     if (response.status !== 429 || attempt === 2) throw new Error(`Yahoo ${symbol}: HTTP ${response.status}`);
     await new Promise(resolve => setTimeout(resolve, 750 * (attempt + 1)));
@@ -84,7 +84,7 @@ export async function fetchYahooSeries(symbol: string, options: HistoryOptions =
 export async function fetchEodhdWeeklySeries(token: string, providerSymbol: string, canonicalSymbol: string, options: HistoryOptions = {}): Promise<PriceSeries> {
   if (canonicalSymbol.endsWith('.T')) throw new Error('Tokyo listings are not currently available from EODHD; Yahoo is the configured fallback');
   const asOf = options.asOf ?? new Date();
-  const result = await fetchEodhdPrices(token, providerSymbol, { ...windowDates(asOf), period: 'd' }, options.fetcher);
+  const result = await fetchEodhdPrices(token, providerSymbol, { ...windowDates(asOf), period: 'd', signal: options.signal }, options.fetcher);
   const points = weeklyCloses(result.points, asOf);
   return enforceLength({ symbol: canonicalSymbol, currency: '', exchange: providerSymbol.split('.').at(-1) ?? '', points, sourceUrl: result.sourceUrl, sourceName: 'EODHD' }, options.allowShort);
 }
@@ -103,20 +103,22 @@ export function chooseCachedSeries(symbol: string, rows: Array<{ observation_dat
   }
   return null;
 }
-export async function collectHistoricalSeries(requests: HistoryRequest[], token: string | null, fetchers = { eodhd: fetchEodhdWeeklySeries, yahoo: fetchYahooSeries }) {
+export async function collectHistoricalSeries(requests: HistoryRequest[], token: string | null, fetchers = { eodhd: fetchEodhdWeeklySeries, yahoo: fetchYahooSeries }, options: {signal?:AbortSignal} = {}) {
   const series: PriceSeries[] = []; const coverage: HistoryCoverage[] = new Array(requests.length);
   let next = 0;
   const asOf = new Date();
   const worker = async () => { while (next < requests.length) {
+    options.signal?.throwIfAborted();
     const index = next++; const request = requests[index]; let data: PriceSeries | undefined;
     let fallbackReason: string | null = request.market === 'JP' || request.symbol.endsWith('.T') ? 'Tokyo listings are not covered by the current EODHD connection; using Yahoo daily adjusted prices' : !token ? 'EODHD connection is not enabled; using Yahoo' : null;
     try {
       if (!fallbackReason && token) {
-        try { data = await fetchers.eodhd(token, request.eodhdSymbol, request.symbol, { allowShort: true, asOf }); }
+        try { data = await fetchers.eodhd(token, request.eodhdSymbol, request.symbol, { allowShort: true, asOf, signal:options.signal }); }
         catch (error) { fallbackReason = safeHistoryReason(error, token); }
       }
       if (!data) {
-        data = await fetchers.yahoo(request.symbol, { allowShort: true, asOf });
+        options.signal?.throwIfAborted();
+        data = await fetchers.yahoo(request.symbol, { allowShort: true, asOf, signal:options.signal });
         data.fallbackReason = fallbackReason ?? undefined;
       }
       series.push(data);

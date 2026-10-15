@@ -14,7 +14,7 @@ export function eodhdSymbol(ticker: string, market: string): string {
 export async function fetchEodhdPrices(
   token: string,
   symbol: string,
-  options: { from: string; to: string; period: "d" | "w" },
+  options: { from: string; to: string; period: "d" | "w"; signal?:AbortSignal },
   fetcher: typeof fetch = fetch,
 ): Promise<{ points: Array<{ date: string; value: number }>; sourceUrl: string }> {
   const url = new URL(`https://eodhd.com/api/eod/${encodeURIComponent(symbol)}`);
@@ -27,7 +27,7 @@ export async function fetchEodhdPrices(
   const sourceUrl = `${url.origin}${url.pathname}?from=${options.from}&to=${options.to}&period=${options.period}&fmt=json`;
   let response: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetcher(url, { signal: AbortSignal.timeout(25_000) });
+    response = await fetcher(url, { signal: options.signal ? AbortSignal.any([options.signal,AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000) });
     if (response.ok) break;
     if (response.status !== 429 || attempt === 2) {
       const reason = response.status === 401 ? "API Token is invalid" : response.status === 403 ? "subscription does not cover this dataset" : `HTTP ${response.status}`;

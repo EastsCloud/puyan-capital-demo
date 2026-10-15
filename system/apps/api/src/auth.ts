@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { validatePassword } from "@isater/domain";
 import { z } from "zod";
 import { config } from "./config.js";
@@ -43,7 +43,9 @@ async function securityEvent(
   );
 }
 
-export async function loadSession(request: FastifyRequest): Promise<void> {
+const sessionCookieOptions = () => ({ httpOnly: true, secure: config.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: config.SESSION_IDLE_MINUTES * 60 });
+
+export async function loadSession(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   request.currentUser = null;
   request.sessionId = null;
   const token = request.cookies[config.SESSION_COOKIE_NAME];
@@ -63,7 +65,7 @@ export async function loadSession(request: FastifyRequest): Promise<void> {
     [tokenHash],
   );
   const row = result.rows[0];
-  if (!row) return;
+  if (!row) { reply.clearCookie(config.SESSION_COOKIE_NAME, { path: "/" }); return; }
 
   request.currentUser = publicUser(row);
   request.sessionId = row.session_id;
@@ -74,6 +76,8 @@ export async function loadSession(request: FastifyRequest): Promise<void> {
       WHERE id = $1`,
     [row.session_id, config.SESSION_IDLE_MINUTES],
   );
+  // Browser expiry must slide with the database expiry, not remain fixed at login.
+  reply.setCookie(config.SESSION_COOKIE_NAME, token, sessionCookieOptions());
 }
 
 export function requireUser(request: FastifyRequest): AuthenticatedUser {
@@ -188,13 +192,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
       await client.query("COMMIT");
 
-      reply.setCookie(config.SESSION_COOKIE_NAME, token, {
-        httpOnly: true,
-        secure: config.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: config.SESSION_IDLE_MINUTES * 60,
-      });
+      reply.setCookie(config.SESSION_COOKIE_NAME, token, sessionCookieOptions());
       return { user: publicUser(row) };
     } catch (error) {
       await client.query("ROLLBACK");

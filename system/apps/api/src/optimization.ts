@@ -17,29 +17,12 @@ import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { chooseCachedSeries, collectHistoricalSeries } from "./market-history.js";
 import { optimizationHistoryWeeks, SHORT_HISTORY_TECHNICAL_MINIMUM } from "./short-history.js";
 
-type SleeveKey = "us" | "developedNonUs" | "emerging";
-
-export interface OptimizerHolding {
-  ticker: string;
-  exchangeCode: string;
-  market: "US" | "JP" | "HK" | "CN_A";
-  sleeve: SleeveKey;
-  style: "growth" | "value";
-  weight: number;
-  locked: boolean;
-}
-
-interface FeasibleSolution {
-  sleeve: SleeveKey;
-  phase: "weight_only" | "minimum_ticker_replacement";
-  tickerReplacements: number;
-  weights: number[];
-  holdings: OptimizerHolding[];
-  turnover: number;
-  metrics: { annualizedReturn: number; beta: number; maximumDrawdown: number };
-  controls: Record<string, unknown>;
-  dataSources: Array<{ symbol: string; provider: string; url: string; fallbackReason: string | null }>;
-}
+import type { AuthenticatedUser } from './types.js';
+import { runOptimizerWorker } from './optimizer-runner.js';
+import { registerOptimizationJobs, latestOptimizationJob } from './optimization-jobs.js';
+import { keyOf as holdingKey, type OptimizerHolding, type SolverSolution as FeasibleSolution, type SleeveKey } from './optimizer-search.js';
+export { oneWayTurnover, replacementCandidateSets, type OptimizerHolding } from './optimizer-search.js';
+import { businessFingerprint } from './short-history.js';
 
 function forbidden(message = "Forbidden") {
   const error = new Error(message) as Error & { statusCode: number };
@@ -77,71 +60,6 @@ async function storedSeries(symbol: string, minimumWeeks = 100): Promise<PriceSe
   return series;
 }
 
-function weightVectors(count: number, maxPct: number): number[][] {
-  const increment = count <= 6 ? 1 : count <= 8 ? 2 : 5;
-  const results: number[][] = [];
-  const current: number[] = [];
-  const visit = (index: number, remaining: number) => {
-    if (index === count - 1) {
-      if (remaining >= increment && remaining <= maxPct && remaining % increment === 0) {
-        results.push([...current, remaining].map((value) => value / 100));
-      }
-      return;
-    }
-    const left = count - index - 1;
-    for (let value = increment; value <= maxPct; value += increment) {
-      const next = remaining - value;
-      if (next < left * increment || next > left * maxPct) continue;
-      current.push(value); visit(index + 1, next); current.pop();
-    }
-  };
-  visit(0, 100);
-  return results;
-}
-
-function holdingKey(holding: Pick<OptimizerHolding, "ticker" | "exchangeCode">): string {
-  return `${holding.ticker}|${holding.exchangeCode}`;
-}
-
-function combinations<T>(values: T[], count: number): T[][] {
-  const result: T[][] = [];
-  const visit = (start: number, selected: T[]) => {
-    if (selected.length === count) {
-      result.push([...selected]);
-      return;
-    }
-    for (let index = start; index <= values.length - (count - selected.length); index += 1) {
-      selected.push(values[index]);
-      visit(index + 1, selected);
-      selected.pop();
-    }
-  };
-  visit(0, []);
-  return result;
-}
-
-export function replacementCandidateSets(original: OptimizerHolding[], universe: OptimizerHolding[]): Array<{
-  holdings: OptimizerHolding[];
-  replacements: number;
-}> {
-  const styleCounts = new Map<OptimizerHolding["style"], number>();
-  original.forEach((holding) => styleCounts.set(holding.style, (styleCounts.get(holding.style) ?? 0) + 1));
-  const growth = combinations(universe.filter((holding) => holding.style === "growth"), styleCounts.get("growth") ?? 0);
-  const value = combinations(universe.filter((holding) => holding.style === "value"), styleCounts.get("value") ?? 0);
-  const originalKeys = new Set(original.map(holdingKey));
-  return growth.flatMap((growthHoldings) => value.map((valueHoldings) => {
-    const holdings = [...growthHoldings, ...valueHoldings].sort((left, right) => left.style.localeCompare(right.style) || left.ticker.localeCompare(right.ticker));
-    return { holdings, replacements: holdings.filter((holding) => !originalKeys.has(holdingKey(holding))).length };
-  })).sort((left, right) => left.replacements - right.replacements);
-}
-
-export function oneWayTurnover(original: OptimizerHolding[], proposed: OptimizerHolding[], proposedWeights: number[]): number {
-  const originalWeights = new Map(original.map((holding) => [holdingKey(holding), holding.weight]));
-  const proposedMap = new Map(proposed.map((holding, index) => [holdingKey(holding), proposedWeights[index]]));
-  const keys = new Set([...originalWeights.keys(), ...proposedMap.keys()]);
-  return [...keys].reduce((sum, key) => sum + Math.abs((proposedMap.get(key) ?? 0) - (originalWeights.get(key) ?? 0)), 0) / 2;
-}
-
 export async function registerOptimizationRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/workflows/:workflowId/optimization/context", async (request) => {
     const user = requirePasswordChanged(request);
@@ -152,13 +70,13 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
           (SELECT id FROM workflow_cases WHERE organization_id = $2)
         ORDER BY o.run_at DESC LIMIT 1`, [workflowId, user.organizationId],
     );
-    return { optimizationRun: latest.rows[0] ?? null };
+    const optimizationJob=await latestOptimizationJob(workflowId,user.organizationId);
+    const optimizationRun=optimizationJob&&!optimizationJob.optimization_run_id?null:latest.rows[0]??null;
+    return { optimizationRun, optimizationJob };
   });
 
-  app.post("/api/workflows/:workflowId/optimization/runs", async (request, reply) => {
-    const user = requirePasswordChanged(request);
-    if (!hasPermission(user.role, "optimization:run")) throw forbidden();
-    const { workflowId } = request.params as { workflowId: string };
+  async function compute(job:any,user:AuthenticatedUser,request:{id:string;ip:string},signal:AbortSignal,progress:(value:Record<string,unknown>)=>Promise<void>) {
+    const workflowId=String(job.workflow_case_id);
     const workflow = await pool.query("SELECT * FROM workflow_cases WHERE id = $1 AND organization_id = $2 AND status = 'active'", [workflowId, user.organizationId]);
     if (!workflow.rows[0] || workflow.rows[0].current_step !== "optimization") throw invalidState("Optimization is not the current workflow step");
     const prior = await pool.query(
@@ -166,7 +84,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
          FROM backtest_runs b JOIN proposed_portfolio_versions p ON p.id = b.proposed_portfolio_version_id
         WHERE p.workflow_case_id = $1 ORDER BY b.run_at DESC LIMIT 1`, [workflowId],
     );
-    if (!prior.rows[0] || prior.rows[0].hard_control_pass) throw invalidState("A failed backtest is required for optimization");
+    if (!prior.rows[0] || prior.rows[0].hard_control_pass || prior.rows[0].id!==job.backtest_run_id || prior.rows[0].proposed_portfolio_version_id!==job.proposed_portfolio_version_id) throw invalidState("The source backtest or proposal changed; start a new optimization job");
     const confirmedShort = prior.rows[0].history_mode === "confirmed_short_history";
     const priorData = jsonValue<Record<string, any>>(prior.rows[0].data_manifest);
     const confirmedWeeks: string[] | null = confirmedShort ? priorData.shortHistoryConfirmation?.usedWeeks ?? null : null;
@@ -209,7 +127,8 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const originalWeights = new Map(originalHoldings.map((holding) => [holdingKey(holding), holding.weight]));
     const eodhdToken = await getActiveEodhdToken(user.organizationId);
     const retrieveSeries = async (symbol: string, providerSymbol: string, market?: string) => {
-      const result = await collectHistoricalSeries([{ symbol, eodhdSymbol: providerSymbol, market }], eodhdToken);
+      signal.throwIfAborted();
+      const result = await collectHistoricalSeries([{ symbol, eodhdSymbol: providerSymbol, market }], eodhdToken, undefined, {signal});
       const coverage = result.coverage[0];
       if (coverage.status === "unavailable" || coverage.observations < minimumWeeks) throw invalidState(`${symbol}: ${coverage.observations} complete weekly observations; at least ${minimumWeeks} required. ${coverage.reason ?? ""}`);
       await saveObservations(result.series);
@@ -230,86 +149,65 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       seriesCache.set(symbol, requested);
       return requested;
     };
+    const contextHash=businessFingerprint({proposal:{rows:[{id:proposalId,version:1}]},targets,policy:parameters,sleeveBenchmarkSymbols:priorBenchmarkManifest.sleeves,holdingSymbols:holdingsResult.rows});
     const solutionsBySleeve = new Map<SleeveKey, FeasibleSolution[]>();
+    const diagnostics:Record<string,unknown>[]=[];
+    const priceBySymbol=new Map<string,PriceSeries>(frozenSeries);
     for (const sleeve of failedSleeves) {
-      const holdings = holdingsResult.rows.filter((item) => item.sleeve === sleeve).map((item) => normalizeHolding(item));
-      const universe = universeResult.rows.filter((item) => item.sleeve === sleeve).map((item) => normalizeHolding(item));
-      const activeBenchmarks = priorBenchmarkManifest.sleeves[sleeve].filter(item => Number(item.weight) > 0);
-      const indexSymbols: Record<string, string> = { "^GSPC": "GSPC.INDX", "^N225": "N225.INDX", "000001.SS": "000001.SHG", "^HSI": "HSI.INDX" };
-      const benchmarkSeries = await Promise.all(activeBenchmarks.map(async item => {
-        if (frozenSeries.has(item.symbol)) return frozenSeries.get(item.symbol)!;
-        try { return await storedSeries(item.symbol, minimumWeeks); }
-        catch { return retrieveSeries(item.symbol, indexSymbols[item.symbol] ?? item.symbol); }
-      }));
-      const benchmarkWeights = activeBenchmarks.map(item => Number(item.weight));
-      const target = targets.equityTargets.find((item) => item.key === sleeve);
-      const evaluate = async (candidateHoldings: OptimizerHolding[], replacements: number): Promise<FeasibleSolution[]> => {
-        const securitySeries = await Promise.all(candidateHoldings.map(priceSeries));
-        const commonWeeks = optimizationHistoryWeeks([...securitySeries, ...benchmarkSeries], confirmedWeeks);
-        // A replacement must cover the entire explicitly accepted window, never shorten it again.
-        if (commonWeeks.length < minimumWeeks || (confirmedWeeks && commonWeeks.length !== confirmedWeeks.length)) return [];
-        const benchmarkReturns = weightedReturns(benchmarkSeries.map((data, index) => ({ data, weight: benchmarkWeights[index] })), commonWeeks);
-        const benchmarkDrawdown = maximumDrawdown(benchmarkReturns);
-        const feasible: FeasibleSolution[] = [];
-        for (const weights of weightVectors(candidateHoldings.length, maxWeightPct)) {
-          const portfolioReturns = weightedReturns(securitySeries.map((data, index) => ({ data, weight: weights[index] })), commonWeeks);
-          const actualReturn = annualizedReturn(portfolioReturns);
-          const actualDrawdown = maximumDrawdown(portfolioReturns);
-          const actualBeta = calculateBeta(portfolioReturns, benchmarkReturns);
-          const returnResult = returnControl(actualReturn, Number(target.targetReturn), tolerance);
-          const drawdownResult = drawdownControl(actualDrawdown, Number(target.maximumDrawdownLimit), benchmarkDrawdown, tolerance);
-          const betaResult = betaControl(actualBeta, target.capm as CapmTarget, returnResult.hardPass, drawdownResult.hardPass, tolerance);
-          if (!returnResult.hardPass || !drawdownResult.hardPass || !betaResult.hardPass) continue;
-          feasible.push({
-            sleeve,
-            phase: replacements === 0 ? "weight_only" : "minimum_ticker_replacement",
-            tickerReplacements: replacements,
-            weights,
-            holdings: candidateHoldings,
-            turnover: oneWayTurnover(holdings, candidateHoldings, weights),
-            metrics: { annualizedReturn: actualReturn, beta: actualBeta, maximumDrawdown: actualDrawdown },
-            controls: { return: returnResult, beta: betaResult, drawdown: drawdownResult },
-            dataSources: securitySeries.map((series) => ({
-              symbol: series.symbol,
-              provider: series.sourceName,
-              url: series.sourceUrl,
-              fallbackReason: series.fallbackReason ?? null,
-            })),
-          });
-        }
-        return feasible;
-      };
-      let feasible = await evaluate(holdings, 0);
-      if (!feasible.length) {
-        const replacementSets = replacementCandidateSets(holdings, universe).filter((item) => item.replacements > 0);
-        for (const replacementCount of [...new Set(replacementSets.map((item) => item.replacements))]) {
-          const results = await Promise.all(
-            replacementSets.filter((item) => item.replacements === replacementCount).map((item) => evaluate(item.holdings, replacementCount)),
-          );
-          feasible = results.flat();
-          if (feasible.length) break;
-        }
+      signal.throwIfAborted();await progress({phase:'preparing',sleeve,completedSleeves:solutionsBySleeve.size,totalSleeves:failedSleeves.length});
+      const holdings=originalHoldings.filter(h=>h.sleeve===sleeve);
+      const permitted=parameters.portfolioConstruction?.equityMarkets??['US','JP','HK','CN_A'];
+      const universe=[...new Map(universeResult.rows.filter(h=>h.sleeve===sleeve&&permitted.includes(h.market)).map(h=>normalizeHolding(h)).map(h=>[holdingKey(h),h])).values()];
+      const activeBenchmarks=priorBenchmarkManifest.sleeves[sleeve].filter(item=>Number(item.weight)>0);
+      const indexSymbols:Record<string,string>={'^GSPC':'GSPC.INDX','^N225':'N225.INDX','000001.SS':'000001.SHG','^HSI':'HSI.INDX'};
+      const benchmarkSeries:PriceSeries[]=[];
+      for(const item of activeBenchmarks) {
+        signal.throwIfAborted();let data=frozenSeries.get(item.symbol);
+        if(!data){try{data=await storedSeries(item.symbol,minimumWeeks);}catch{data=await retrieveSeries(item.symbol,indexSymbols[item.symbol]??item.symbol);}}
+        benchmarkSeries.push(data);priceBySymbol.set(data.symbol,data);
       }
-      if (!feasible.length) throw invalidState(`${sleeve} has no compliant solution after minimum-ticker-replacement search`);
-      const selections = [
-        [...feasible].sort((a, b) => a.turnover - b.turnover || Math.abs(a.metrics.beta - Number(target.targetBeta)) - Math.abs(b.metrics.beta - Number(target.targetBeta))),
-        [...feasible].sort((a, b) => Math.abs(a.metrics.beta - Number(target.targetBeta)) - Math.abs(b.metrics.beta - Number(target.targetBeta)) || a.turnover - b.turnover),
-        [...feasible].sort((a, b) => b.metrics.maximumDrawdown - a.metrics.maximumDrawdown || a.turnover - b.turnover),
-      ];
-      const used = new Set<string>();
-      solutionsBySleeve.set(sleeve, selections.map((selection) => {
-        const chosen = selection.find((item) => {
-          const signature = item.holdings.map(holdingKey).join("|") + item.weights.join(",");
-          if (used.has(signature)) return false;
-          used.add(signature);
-          return true;
-        });
-        return chosen ?? selection[0];
-      }));
+      const securities:PriceSeries[]=[];for(const h of holdings){signal.throwIfAborted();const data=await priceSeries(h);securities.push(data);priceBySymbol.set(data.symbol,data);}
+      const priorMetric=jsonValue<{sleeves:any[]}>(prior.rows[0].metrics).sleeves.find(item=>item.sleeve===sleeve);
+      const weeks=optimizationHistoryWeeks([...securities,...benchmarkSeries],confirmedWeeks).filter(week=>!priorMetric?.startDate||week>=String(priorMetric.startDate).slice(0,10)&&week<=String(priorMetric.endDate).slice(0,10));
+      if(weeks.length<minimumWeeks||(confirmedWeeks&&weeks.length!==confirmedWeeks.length))throw Object.assign(invalidState(`${sleeve}: original prices do not cover the accepted backtest window; rerun the backtest coverage check`),{code:'optimization_data_unready'});
+      const target=targets.equityTargets.find(item=>item.key===sleeve);
+      const input={holdings,universe:[] as OptimizerHolding[],series:[...securities,...benchmarkSeries],weeks,benchmarks:activeBenchmarks,target,tolerance,maxWeightPct,budget:{maxEvaluations:12000,maxCandidateSets:1}};
+      await progress({phase:'running',sleeve,evaluations:0});
+      let lastProgress=0;const notify=(value:Record<string,unknown>)=>{if(Date.now()-lastProgress<500)return;lastProgress=Date.now();void progress({phase:'running',sleeve,...value}).catch(()=>{});};
+      let solved=await runOptimizerWorker(input,signal,notify);
+      const originalDiagnostics=solved.diagnostics;
+      if(!solved.solutions.length) {
+        const alternatives=universe.filter(h=>!holdings.some(original=>holdingKey(original)===holdingKey(h))).slice(0,24);
+        const missing:string[]=[];const usable:OptimizerHolding[]=[];
+        // Serial, bounded retrieval. Missing replacements are reported, never fatal for other candidates.
+        for(const h of alternatives){signal.throwIfAborted();await progress({phase:'preparing',sleeve,replacementPricesLoaded:usable.length,replacementPriceLimit:alternatives.length});
+          try{const data=await priceSeries(h);if(!weeks.every(week=>data.points.some(point=>point.week===week))){missing.push(holdingKey(h));continue;}priceBySymbol.set(data.symbol,data);usable.push(h);}
+          catch(error){signal.throwIfAborted();missing.push(holdingKey(h));}
+        }
+        await progress({phase:'running',sleeve});
+        solved=await runOptimizerWorker({...input,universe:usable,series:[...new Map([...input.series,...usable.map(h=>priceBySymbol.get(yahooSymbol(h.ticker,h.market))!)].map(s=>[s.symbol,s])).values()],budget:{maxEvaluations:28000,maxCandidateSets:64,maxReplacements:2}},signal,notify);
+        diagnostics.push({sleeve,weightOnly:originalDiagnostics,replacement:solved.diagnostics,missingReplacementPrices:missing,universeTruncated:universe.length>holdings.length+24});
+      }else diagnostics.push({sleeve,weightOnly:solved.diagnostics});
+      if(!solved.solutions.length)throw Object.assign(new Error('Search budget did not find a compliant solution'),{code:solved.outcome==='budget_exhausted'?'search_budget_exhausted':'search_no_candidate',diagnostics});
+      // Independently recompute every retained result using the main backtest math.
+      for(const solution of solved.solutions) {
+        const sum=solution.weights.reduce((s,w)=>s+w,0);
+        if(Math.abs(sum-1)>1e-8||solution.weights.some(w=>!Number.isFinite(w)||w<=0||w>maxWeightPct/100+1e-10))throw new Error('Optimizer weight validation failed');
+        for(const locked of holdings.filter(h=>h.locked)){const i=solution.holdings.findIndex(h=>holdingKey(h)===holdingKey(locked));if(i<0||Math.abs(solution.weights[i]-locked.weight)>1e-10)throw new Error('Optimizer changed a locked holding');}
+        for(const style of ['growth','value'])if(solution.holdings.filter(h=>h.style===style).length!==holdings.filter(h=>h.style===style).length)throw new Error('Optimizer changed style counts');
+        const securityReturns=weightedReturns(solution.holdings.map((h,i)=>({data:priceBySymbol.get(yahooSymbol(h.ticker,h.market))!,weight:solution.weights[i]})),weeks);
+        const benchmarkReturns=weightedReturns(benchmarkSeries.map((data,i)=>({data,weight:Number(activeBenchmarks[i].weight)})),weeks);
+        const actualReturn=annualizedReturn(securityReturns),actualDrawdown=maximumDrawdown(securityReturns),actualBeta=calculateBeta(securityReturns,benchmarkReturns);
+        const r=returnControl(actualReturn,Number(target.targetReturn),tolerance),d=drawdownControl(actualDrawdown,Number(target.maximumDrawdownLimit),maximumDrawdown(benchmarkReturns),tolerance),b=betaControl(actualBeta,target.capm as CapmTarget,r.hardPass,d.hardPass,tolerance);
+        if(!r.hardPass||!d.hardPass||!b.hardPass)throw new Error('Optimizer independent risk verification failed');
+        solution.metrics={annualizedReturn:actualReturn,beta:actualBeta,maximumDrawdown:actualDrawdown};solution.controls={return:r,beta:b,drawdown:d};
+      }
+      solutionsBySleeve.set(sleeve,solved.solutions);
     }
-    const strategyLabels = ["最小换手", "Beta 贴近目标", "回撤缓冲"];
+    const strategyLabels = ["低换手（预算内）", "Beta 贴近目标（预算内）", "回撤缓冲（预算内）"];
+    const candidateSignatures=new Set<string>();
     const allCandidates = strategyLabels.map((label, strategyIndex) => {
-      const sleeveResults = failedSleeves.map((sleeve) => solutionsBySleeve.get(sleeve)![strategyIndex]);
+      const sleeveResults = failedSleeves.map((sleeve) => (solutionsBySleeve.get(sleeve)![strategyIndex] ?? solutionsBySleeve.get(sleeve)![0]));
       return {
         key: ["minimum-turnover", "beta-target", "drawdown-buffer"][strategyIndex],
         label,
@@ -345,21 +243,26 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
             metrics: item.metrics,
             controls: item.controls,
             dataSources: item.dataSources,
+            startDate:item.startDate,endDate:item.endDate,observationCount:item.observationCount,
             holdings: [...proposed, ...removed].sort((left, right) => left.style.localeCompare(right.style) || left.ticker.localeCompare(right.ticker)),
           };
         }),
       };
-    });
+    }).filter(candidate=>{const signature=JSON.stringify(candidate.sleeveResults.map(item=>item.holdings.map(h=>[h.ticker,h.exchangeCode,h.proposedWeight])));if(candidateSignatures.has(signature))return false;candidateSignatures.add(signature);return true;});
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      const active=await client.query("SELECT id FROM optimization_jobs WHERE id=$1 AND status IN ('queued','preparing','running') FOR UPDATE",[job.id]);
+      const current=await client.query("SELECT id FROM workflow_cases WHERE id=$1 AND organization_id=$2 AND current_step='optimization' AND status='active' FOR UPDATE",[workflowId,user.organizationId]);
+      const latest=await client.query("SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1",[workflowId]);
+      signal.throwIfAborted();if(!active.rows[0]||!current.rows[0]||latest.rows[0]?.id!==proposalId||JSON.stringify(await effectiveParameters(user.organizationId))!==JSON.stringify(parameters))throw new Error('Optimization context changed before persistence');
       const next = await client.query("SELECT COALESCE(max(run_number), 0)::int + 1 AS run_number FROM optimization_runs WHERE proposed_portfolio_version_id = $1", [proposalId]);
       const saved = await client.query(
         `INSERT INTO optimization_runs
           (proposed_portfolio_version_id, backtest_run_id, run_number, model_version, constraints, candidates, run_by)
-         VALUES ($1, $2, $3, 'isater-optimizer-1.1.0', $4, $5, $6) RETURNING *`,
+         VALUES ($1, $2, $3, 'isater-optimizer-1.3.0', $4, $5, $6) RETURNING *`,
         [proposalId, prior.rows[0].id, next.rows[0].run_number,
-          { solveBySleeve: true, phaseOrder: ["weight_only", "minimum_ticker_replacement"], maxSingleSecurityWeightPct: maxWeightPct, failedSleeves }, allCandidates, user.id],
+          { solveBySleeve: true, phaseOrder: ["weight_only", "minimum_ticker_replacement"], maxSingleSecurityWeightPct: maxWeightPct, failedSleeves, contextHash, parameterSnapshot:parameters, diagnostics, globalOptimalityProven:false, searchMethod:"bounded coordinate search; up to 24 replacement securities and 64 sets; max 2 replacements" }, allCandidates, user.id],
       );
       await writeAudit(client, {
         organizationId: user.organizationId, actorUserId: user.id, action: "optimization.run", entityType: "optimization_run", entityId: saved.rows[0].id,
@@ -368,13 +271,15 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
           failedSleeves,
           candidateCount: allCandidates.length,
           phases: [...new Set(allCandidates.map((item) => item.phase))],
-          minimumTickerReplacements: Math.min(...allCandidates.map((item) => item.tickerReplacements)),
+          fewestReplacementsAmongRetained: Math.min(...allCandidates.map((item) => item.tickerReplacements)),
         },
       });
+      await client.query("UPDATE optimization_jobs SET status='succeeded',optimization_run_id=$2,message='已生成并复核预算内找到的可行方案。',progress=progress||$3::jsonb,finished_at=now(),updated_at=now() WHERE id=$1",[job.id,saved.rows[0].id,JSON.stringify({phase:'completed',diagnostics})]);
       await client.query("COMMIT");
-      return reply.code(201).send({ optimizationRun: saved.rows[0] });
+      return saved.rows[0];
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
-  });
+  }
+  await registerOptimizationJobs(app,compute);
 
   app.post("/api/optimization-runs/:runId/select", async (request, reply) => {
     const user = requirePasswordChanged(request);
@@ -388,10 +293,13 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
         WHERE o.id = $1 AND w.organization_id = $2 AND w.current_step = 'optimization'`, [runId, user.organizationId],
     );
     if (!run.rows[0]) throw invalidState("Active optimization run not found");
+    const constraints=jsonValue<Record<string,any>>(run.rows[0].constraints);
+    if(constraints.parameterSnapshot&&JSON.stringify(await effectiveParameters(user.organizationId))!==JSON.stringify(constraints.parameterSnapshot))throw invalidState('Parameters changed after optimization; generate a new optimization run');
     const candidates = jsonValue<any[]>(run.rows[0].candidates);
     const candidate = candidates.find((item) => item.key === input.candidateKey);
     if (!candidate) throw invalidState("Optimization candidate not found");
     const original = await pool.query("SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id = $1 ORDER BY sleeve, style, ticker", [run.rows[0].proposed_portfolio_version_id]);
+    if(constraints.contextHash){const source=(await pool.query('SELECT benchmark_manifest FROM backtest_runs WHERE id=$1',[run.rows[0].backtest_run_id])).rows[0];const target=(await pool.query('SELECT targets FROM sleeve_target_versions WHERE id=$1',[run.rows[0].sleeve_target_version_id])).rows[0];const hash=businessFingerprint({proposal:{rows:[{id:run.rows[0].proposed_portfolio_version_id,version:1}]},targets:jsonValue(target.targets),policy:await effectiveParameters(user.organizationId),sleeveBenchmarkSymbols:jsonValue<any>(source.benchmark_manifest).sleeves,holdingSymbols:original.rows});if(hash!==constraints.contextHash)throw invalidState('Portfolio targets, holdings or parameters changed; generate a new optimization run');}
     const sleeveResults = (candidate.sleeveResults ?? [{
       sleeve: candidate.sleeve,
       phase: candidate.phase,
@@ -406,6 +314,9 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      const currentWorkflow=await client.query("SELECT id FROM workflow_cases WHERE id=$1 AND organization_id=$2 AND current_step='optimization' AND status='active' FOR UPDATE",[run.rows[0].workflow_case_id,user.organizationId]);
+      const latestProposal=await client.query("SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1",[run.rows[0].workflow_case_id]);
+      if(!currentWorkflow.rows[0]||latestProposal.rows[0]?.id!==run.rows[0].proposed_portfolio_version_id)throw invalidState('Proposal changed or candidate was already accepted; reload the current workflow');
       const next = await client.query("SELECT COALESCE(max(version), 0)::int + 1 AS version FROM proposed_portfolio_versions WHERE workflow_case_id = $1", [run.rows[0].workflow_case_id]);
       const proposal = await client.query(
         `INSERT INTO proposed_portfolio_versions
@@ -423,8 +334,8 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       for (const holding of candidateHoldings) {
         await client.query(
           `INSERT INTO proposed_holdings (proposed_portfolio_version_id, ticker, exchange_code, market, sleeve, style, weight, locked)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, false)`,
-          [proposal.rows[0].id, holding.ticker, holding.exchangeCode, holding.market, holding.sleeve, holding.style, holding.proposedWeight],
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [proposal.rows[0].id, holding.ticker, holding.exchangeCode, holding.market, holding.sleeve, holding.style, holding.proposedWeight,original.rows.find(item=>item.ticker===holding.ticker&&item.exchange_code===holding.exchangeCode)?.locked??false],
         );
       }
       const priorBacktest = await client.query("SELECT * FROM backtest_runs WHERE id = $1", [run.rows[0].backtest_run_id]);
@@ -438,7 +349,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
         ...priorDataManifest,
         symbols: [...new Set(finalHoldings.map((item) => yahooSymbol(item.ticker, item.market)))],
         optimizationSources: sleeveResults.flatMap((item) => item.dataSources ?? []),
-        optimizerModelVersion: "isater-optimizer-1.1.0",
+        optimizerModelVersion: "isater-optimizer-1.3.0",
         optimizedAt: new Date().toISOString(),
       };
       const resultBySleeve = new Map(sleeveResults.map((item) => [item.sleeve, item]));
@@ -450,6 +361,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
             annualizedReturn: optimized.metrics.annualizedReturn,
             beta: optimized.metrics.beta,
             maximumDrawdown: optimized.metrics.maximumDrawdown,
+            startDate:optimized.startDate??item.startDate,endDate:optimized.endDate??item.endDate,observationCount:optimized.observationCount??item.observationCount,
             returnControl: optimized.controls.return,
             betaControl: optimized.controls.beta,
             drawdownControl: optimized.controls.drawdown,
@@ -457,14 +369,16 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
           } : item;
         }),
       };
+      const flags=jsonValue<Array<Record<string,any>>>(priorBacktest.rows[0].review_flags).filter(item=>item.control==='short_history');
+      for(const metric of optimizedMetrics.sleeves){if(metric.returnControl?.review)flags.push({sleeve:metric.sleeve,control:'return',reason:'Return is materially above the target; committee review is required.'});if(metric.betaControl?.review)flags.push({sleeve:metric.sleeve,control:'beta',reason:'Low or inactive beta control; committee review is required.'});}
       await client.query(
         `INSERT INTO backtest_runs
           (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
            metrics, hard_control_pass, review_flags, model_version, run_by, history_mode, short_history_confirmation_id)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, true, $8, 'isater-optimizer-validation-1.2.0', $9, $10, $11)`,
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, true, $8, 'isater-optimizer-validation-1.3.0', $9, $10, $11)`,
         [proposal.rows[0].id, priorBacktest.rows[0].start_date, priorBacktest.rows[0].end_date, priorBacktest.rows[0].frequency,
           priorBacktest.rows[0].benchmark_manifest, optimizedDataManifest, optimizedMetrics,
-          priorBacktest.rows[0].review_flags, user.id, priorBacktest.rows[0].history_mode ?? "standard", priorBacktest.rows[0].short_history_confirmation_id ?? null],
+          flags, user.id, priorBacktest.rows[0].history_mode ?? "standard", priorBacktest.rows[0].short_history_confirmation_id ?? null],
       );
       await client.query("UPDATE optimization_runs SET selected_candidate_key = $1, selected_by = $2, selected_at = now() WHERE id = $3", [candidate.key, user.id, runId]);
       await writeAudit(client, {

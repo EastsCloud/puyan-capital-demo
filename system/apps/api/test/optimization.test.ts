@@ -28,7 +28,7 @@ describe("sleeve optimizer replacement search", () => {
   ];
 
   it("orders candidate sets by the minimum number of ticker replacements", () => {
-    const sets = replacementCandidateSets(original, universe);
+    const sets = [...replacementCandidateSets(original, universe)];
     expect(sets[0].replacements).toBe(0);
     expect(sets.find((item) => item.replacements > 0)?.replacements).toBe(1);
     expect(sets.every((item) => item.holdings.filter((holding) => holding.style === "growth").length === 2)).toBe(true);

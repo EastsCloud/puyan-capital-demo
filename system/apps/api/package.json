@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:optimizer-memory": "node --max-old-space-size=256 test/optimizer-memory-smoke.mjs",
     "migrate": "tsx src/migrate.ts",
     "bootstrap-admin": "tsx src/bootstrap-admin.ts"
   },

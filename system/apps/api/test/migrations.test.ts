@@ -41,6 +41,7 @@ describe("PostgreSQL migrations", () => {
       "proposed_portfolio_versions",
       "backtest_runs",
       "optimization_runs",
+      "optimization_jobs",
       "position_snapshots",
       "external_data_connections",
       "execution_fill_batches",

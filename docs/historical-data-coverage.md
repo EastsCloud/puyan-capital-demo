@@ -43,3 +43,5 @@ Automated tests use explicitly mocked data and cover multiple short-history fail
 6. Check that risk failures still route to optimization and that a hard-control pass still requires committee approval. Check the short-history notice in approval and a newly generated report. Do not reset production data to test this feature.
 
 Yahoo is a public fallback with operational and licensing limitations. Real team use still requires provider coverage/licensing acceptance and financial-model validation.
+
+See [Bounded Background Optimization](optimizer-search.md) for resource budgets, durable task progress, independent risk revalidation, and available-history preservation during optimization. Search failure within a budget is not proof of mathematical infeasibility.
