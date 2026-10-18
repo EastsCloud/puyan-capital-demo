@@ -1,5 +1,16 @@
 # Isater Review Release Status
 
+## 2026-10-18: Multiple archives and standalone research backtests
+
+- Added named annual/research archives, including multiple archives for the same year. Administrators create/copy and explicitly select the team-wide workspace; existing annual workflows are backfilled without resetting records. New archives have independent portfolios.
+- Research runs need only stocks, whole-portfolio weights, dates, a benchmark and a simulation method. They use real stock/FX prices, record short-history consent, and produce historical metrics without a pass/fail approval decision. They cannot approve or execute trades.
+- Copying carries configuration and proposed holdings, not approvals, actual positions, fills, reports, money or old research results. New formal copies start at annual data, with committee principal activation and fresh approvals; copied holdings require explicit draft loading/submission.
+- Formal calculations use an archive parameter snapshot. Stale requests and linked actions are guarded, current-principal writes are pinned across concurrent selection changes, and background results stay attached to their originating archive. Effective principal cannot be overwritten. Global demo reset is disabled once archives exist.
+- Additive migration 0027 stores selection, archive metadata and background research runs with immutable terminal evidence. No reset or additional hosting service is required.
+- Verification: 145 automated tests, type checks, production builds and mocked desktop/mobile archive/import/revision/security regressions passed. A read-only Yahoo stock/FX check also produced an aligned 104-price research calculation. This is not hosted EODHD entitlement verification, production deployment acceptance or independent financial validation.
+
+Details: [Investment Archives and Research](docs/investment-archives-and-research.md).
+
 ## 2026-10-15: Security edits and explicit fill-difference explanations
 
 - Administrators can edit security reference data with a required reason, price/listing checks, optimistic concurrency, organization isolation, and before/after audit evidence. Shared entries receive team-specific overrides; historical approved snapshots are not rewritten.

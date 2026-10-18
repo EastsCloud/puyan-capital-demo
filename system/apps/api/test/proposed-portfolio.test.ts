@@ -101,6 +101,10 @@ describe("proposed portfolio persistence and security registration", () => {
     const rejected = await app.inject({ method: "POST", url: `/api/workflows/${workflowId}/proposed-portfolio/versions`, payload: { holdings } });
     expect(rejected.statusCode).toBe(409); expect(rejected.json().error).toContain("2-5");
     await state.db.query("INSERT INTO parameter_sets (organization_id, version, status, parameters, created_by) VALUES ($1,1,'effective',$2,$3)", [organizationId, { portfolioConstruction: { maxSingleSecurityWeightPct: 35, styleTickerMin: 2, styleTickerMax: 10, equityMarkets: ["US", "JP", "HK", "CN_A"] } }, adminId]);
+    // Existing archive retains its snapshotted policy when global settings change.
+    expect((await app.inject({method:'POST',url:`/api/workflows/${workflowId}/proposed-portfolio/versions`,payload:{holdings}})).statusCode).toBe(409);
+    // Set this fixture's independent archive policy to exercise the 36-name policy case.
+    await state.db.query("UPDATE investment_archives SET configuration=jsonb_set(configuration,'{parameterSnapshot}',(SELECT parameters FROM parameter_sets WHERE organization_id=$1 AND status='effective')) WHERE workflow_case_id=$2",[organizationId,workflowId]);
     const accepted = await app.inject({ method: "POST", url: `/api/workflows/${workflowId}/proposed-portfolio/versions`, payload: { holdings } });
     expect(accepted.statusCode).toBe(201);
     expect(accepted.json().proposedPortfolioVersion.version).toBe(2);

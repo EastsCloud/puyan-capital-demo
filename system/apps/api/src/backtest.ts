@@ -11,6 +11,7 @@ import {
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool, type DatabaseClient } from "./db.js";
+import {archiveParameters} from './archive-parameters.js';
 import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { collectHistoricalSeries, historyReport, yahooSymbol, type PriceSeries } from "./market-history.js";
 import { businessFingerprint, commonHistoryWeeks, shortHistoryOption, SHORT_HISTORY_TECHNICAL_MINIMUM, SHORT_HISTORY_WARNING } from "./short-history.js";
@@ -74,10 +75,10 @@ export async function saveObservations(series: PriceSeries[]): Promise<void> {
   }
 }
 
-async function backtestParameters(organizationId: string, db: Pick<DatabaseClient, "query"> = pool): Promise<BacktestTolerance & { months: number; frequency: string }> {
+async function backtestParameters(organizationId: string, db: Pick<DatabaseClient, "query"> = pool,workflowId?:string): Promise<BacktestTolerance & { months: number; frequency: string }> {
   const effective = await db.query("SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1", [organizationId]);
   const defaults = effective.rows[0] ? null : await db.query("SELECT parameters FROM default_business_parameters ORDER BY version DESC LIMIT 1");
-  const parameters = jsonValue<Record<string, any>>((effective.rows[0] ?? defaults!.rows[0]).parameters);
+  const parameters = await archiveParameters(organizationId,workflowId,db)??jsonValue<Record<string, any>>((effective.rows[0] ?? defaults!.rows[0]).parameters);
   const policy = parameters.backtest ?? {};
   return {
     betaRelative: Number(policy.betaRelativeTolerance ?? 0.05),
@@ -106,7 +107,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
     const targets = jsonValue<{ equityTargets: Array<any> }>(proposal.rows[0].targets);
     const recommendation = jsonValue<{ marketWeights: { chinaA: number; hongKong: number } }>(proposal.rows[0].recommendation);
     if (!Number.isFinite(recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong) || recommendation.marketWeights.chinaA + recommendation.marketWeights.hongKong <= 0) throw invalidState("Emerging-market benchmark weights are missing or invalid");
-    const policy = await backtestParameters(user.organizationId, db);
+    const policy = await backtestParameters(user.organizationId, db,workflowId);
     const sleeveBenchmarkSymbols: Record<SleeveKey, Array<{ symbol: string; eodhdSymbol: string; weight: number }>> = {
       us: [{ symbol: "^GSPC", eodhdSymbol: "GSPC.INDX", weight: 1 }],
       developedNonUs: [{ symbol: "^N225", eodhdSymbol: "N225.INDX", weight: 1 }],
@@ -162,7 +163,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
         ORDER BY b.run_at DESC LIMIT 1`, [workflowId],
     );
     const stale=workflow.rows[0].payload?.revisionOpenedAt&&latest.rows[0]&&new Date(latest.rows[0].run_at).getTime()<new Date(workflow.rows[0].payload.revisionOpenedAt).getTime();
-    return { policy: await backtestParameters(user.organizationId), backtestRun: stale?null:latest.rows[0]??null };
+    return { policy: await backtestParameters(user.organizationId,pool,workflowId), backtestRun: stale?null:latest.rows[0]??null };
   });
 
   app.post("/api/workflows/:workflowId/backtest/runs", async (request, reply) => {

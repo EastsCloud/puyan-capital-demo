@@ -95,11 +95,12 @@ export async function registerWorkflowRoutes(app: FastifyInstance): Promise<void
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query('SELECT id FROM organizations WHERE id=$1 FOR NO KEY UPDATE',[user.organizationId]);
       const portfolio = await client.query(
         `SELECT id, initial_principal FROM portfolios
-          WHERE organization_id = $1 AND is_active = true
+          WHERE organization_id = $1 AND id=COALESCE((SELECT a.portfolio_id FROM archive_selection s JOIN investment_archives a ON a.id=s.archive_id WHERE s.organization_id=$1 AND s.archive_id=$2::uuid),(SELECT id FROM portfolios WHERE organization_id=$1 AND is_active=true AND NOT EXISTS(SELECT 1 FROM archive_selection WHERE organization_id=$1) ORDER BY created_at LIMIT 1))
           ORDER BY created_at LIMIT 1`,
-        [user.organizationId],
+        [user.organizationId,request.headers['x-archive-id']??null],
       );
       if (!portfolio.rows[0]) throw invalidState("No active portfolio exists");
       if (portfolio.rows[0].initial_principal == null) throw invalidState("Portfolio principal must be effective before the annual cycle starts");
@@ -133,6 +134,8 @@ export async function registerWorkflowRoutes(app: FastifyInstance): Promise<void
         ipAddress: request.ip,
         detail: { businessYear: input.businessYear },
       });
+      const archive=(await client.query(`INSERT INTO investment_archives(organization_id,portfolio_id,workflow_case_id,name,kind,business_year,created_by,configuration) SELECT $1,$2,$3,'Annual '||$4::text,'annual',$4,$5,jsonb_build_object('parameterSnapshot',parameters,'parameterSnapshotVersion',version,'parameterSnapshotSource','organization','parameterSnapshotEffectiveFrom',COALESCE(effective_from,created_at)) FROM parameter_sets WHERE id=$6 RETURNING id`,[user.organizationId,portfolio.rows[0].id,result.rows[0].id,input.businessYear,user.id,parameterSet.rows[0].id])).rows[0];
+      await client.query('INSERT INTO archive_selection(organization_id,archive_id,selected_by) VALUES($1,$2,$3) ON CONFLICT(organization_id) DO UPDATE SET archive_id=$2,selected_by=$3,updated_at=now()',[user.organizationId,archive.id,user.id]);
       await client.query("COMMIT");
       return reply.code(201).send({ workflow: result.rows[0] });
     } catch (error) {
@@ -151,7 +154,8 @@ export async function registerWorkflowRoutes(app: FastifyInstance): Promise<void
          JOIN portfolios p ON p.id = w.portfolio_id
         WHERE w.organization_id = $1
           AND w.workflow_type = 'annual_cycle'
-          AND w.status = 'active'
+          AND (w.id=(SELECT a.workflow_case_id FROM archive_selection s JOIN investment_archives a ON a.id=s.archive_id WHERE s.organization_id=$1)
+            OR (NOT EXISTS(SELECT 1 FROM archive_selection WHERE organization_id=$1) AND w.status='active'))
         ORDER BY w.business_year DESC, w.created_at DESC
         LIMIT 1`,
       [user.organizationId],

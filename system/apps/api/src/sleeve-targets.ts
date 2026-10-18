@@ -3,6 +3,7 @@ import { capmTargetBeta, decomposeTargetFloor, hasPermission, type SleeveReferen
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
+import {archiveParameters} from './archive-parameters.js';
 
 function forbidden(message = "Forbidden") {
   const error = new Error(message) as Error & { statusCode: number };
@@ -20,7 +21,8 @@ function jsonValue<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
 }
 
-async function effectiveParameters(organizationId: string): Promise<Record<string, unknown>> {
+async function effectiveParameters(organizationId: string,workflowId?:string): Promise<Record<string, unknown>> {
+  const snapshot=await archiveParameters(organizationId,workflowId);if(snapshot)return snapshot;
   const effective = await pool.query(
     "SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1",
     [organizationId],
@@ -67,7 +69,7 @@ async function buildContext(workflowId: string, organizationId: string) {
     { key: "cash", kind: "cash", weight: recommendation.assetWeights.cash, referenceReturn: recommendation.statistics.cash.annualizedReturn },
   ];
   const decomposition = decomposeTargetFloor(Number(row.target_return_rate), references);
-  const parameters = await effectiveParameters(organizationId);
+  const parameters = await effectiveParameters(organizationId,workflowId);
   const riskFreeRates = (parameters.riskFreeRatesPct ?? { us: 4.5, japan: 0.5, hongKong: 4.2, chinaA: 1.8 }) as Record<string, number>;
   const ratioPolicy = (parameters.returnDrawdownRatio ?? { low: 0.6, high: 0.8 }) as { low: number; high: number };
   const ratioMidpoint = (ratioPolicy.low + ratioPolicy.high) / 2;

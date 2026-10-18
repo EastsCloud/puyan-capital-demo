@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState,useRef, type FormEvent } from "react";
 import { ProposedPortfolioEditor } from "./ProposedPortfolioEditor";
 import {ProposalHistoryPanel,type ProposalVersion} from './ProposalHistoryPanel';
 import {reconciliationExplanation,type FillDetail} from './reconciliation-display';
 import { SecuritiesPage } from "./SecuritiesPage";
+import {ArchivesPage,ResearchPage,type InvestmentArchive} from './ArchiveWorkspace';
 import { apiErrorMessage } from "./api-error";
 import { isSessionExpiry, sessionExpiryMessage } from "./api-session";
 import { HistoryCoveragePanel, ShortHistoryNotice, type HistoryReport, type ShortHistoryConfirmation } from "./HistoryCoveragePanel";
@@ -14,7 +15,7 @@ import {
 
 type Locale = "zh-CN" | "en";
 type Role = "system_admin" | "decision_committee" | "execution_team";
-type Page = "overview" | "annual" | "portfolio" | "monitoring" | "reports" | "users" | "parameters" | "sources" | "connections" | "audit" | "securities";
+type Page = "overview" | "annual" | "portfolio" | "monitoring" | "reports" | "users" | "parameters" | "sources" | "connections" | "audit" | "securities" | "archives";
 
 interface User {
   id: string;
@@ -458,6 +459,7 @@ const copy = {
 } as const;
 
 let activeApiRequests = 0;
+let currentApiArchive:string|null=null;
 function reportApiActivity(delta: 1 | -1) {
   activeApiRequests = Math.max(0, activeApiRequests + delta);
   window.dispatchEvent(new CustomEvent("isater:api-activity", { detail: activeApiRequests }));
@@ -466,14 +468,18 @@ function reportApiActivity(delta: 1 | -1) {
 async function api<T>(path: string, init?: RequestInit, quiet = false): Promise<T> {
   if(!quiet) reportApiActivity(1);
   const headers = new Headers(init?.headers);
+  if(quiet&&(!init?.method||init.method==='GET'))headers.set('X-Isater-Poll','1');
+  if(currentApiArchive)headers.set('X-Archive-Id',currentApiArchive);
   if (init?.body) headers.set("Content-Type", "application/json");
   try {
     const response = await fetch(path, { credentials: "include", ...init, headers });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if(body.error==='archive_changed_refresh_required')window.dispatchEvent(new Event('isater:archives-refresh'));
       if (isSessionExpiry(path, response.status)) window.dispatchEvent(new CustomEvent("isater:session-expired"));
       throw Object.assign(new Error(isSessionExpiry(path, response.status) ? sessionExpiryMessage(localStorage.getItem("isater-locale") ?? "zh-CN") : apiErrorMessage(body, `HTTP ${response.status}`)), { code: body.error, body, statusCode: response.status });
     }
+    if(path==='/api/workflows/annual'&&init?.method==='POST')window.dispatchEvent(new Event('isater:archives-refresh'));
     return body as T;
   } finally {
     if(!quiet) reportApiActivity(-1);
@@ -1630,7 +1636,13 @@ function ApprovedPortfolioPage({ locale }: { locale: Locale }) {
 function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: Locale; onLocale: (locale: Locale) => void; onLogout: () => void }) {
   const text = copy[locale]; const zh = locale === "zh-CN"; const [open, setOpen] = useState(false); const [page, setPage] = useState<Page>("overview");
   const [proposalDirty, setProposalDirty] = useState(false);
-  const leaveDraft = () => !proposalDirty || window.confirm(zh ? "拟持仓尚未保存，离开会放弃草稿。确定离开？" : "Unsaved proposed holdings will be discarded. Leave this page?");
+  const [archive,setArchive]=useState<InvestmentArchive|null>(null);const [archiveReady,setArchiveReady]=useState(false);const [archiveError,setArchiveError]=useState('');
+  const [archiveChanged,setArchiveChanged]=useState(false);
+  const archiveLoad=useRef(0);
+  const leaveDraft = () => !proposalDirty || window.confirm(zh ? "当前草稿尚未保存，离开会放弃草稿。确定离开？" : "Unsaved drafts will be discarded. Leave this page?");
+  async function loadArchive(){const seq=++archiveLoad.current;try{const r=await api<{selectedArchive:InvestmentArchive|null}>('/api/archives',undefined,true);if(seq!==archiveLoad.current)return;const next=r.selectedArchive;if(currentApiArchive!==(next?.id??null)){if(currentApiArchive)setArchiveChanged(true);setProposalDirty(false);setPage('overview');}currentApiArchive=next?.id??null;setArchive(next);setArchiveReady(true);setArchiveError('');}catch(e){if(seq===archiveLoad.current)setArchiveError((e as Error).message);}}
+  useEffect(()=>{void loadArchive();const timer=setInterval(()=>void loadArchive(),15000);const refresh=()=>void loadArchive();window.addEventListener('isater:archives-refresh',refresh);return()=>{clearInterval(timer);window.removeEventListener('isater:archives-refresh',refresh);};},[]);
+  async function selectArchive(id:string){if(!leaveDraft())return;await api(`/api/admin/archives/${id}/select`,{method:'POST',body:'{}'});await loadArchive();}
   const logout = () => { if (leaveDraft()) onLogout(); };
   const [notificationOpen, setNotificationOpen] = useState(false); const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const loadNotifications = async () => { const result = await api<{ notifications: UserNotification[] }>("/api/notifications"); setNotifications(result.notifications); return result.notifications; };
@@ -1644,7 +1656,7 @@ function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: L
     if (unread.length) await loadNotifications();
   }
   const adminLinks: { id: Page; label: string; icon: typeof Users }[] = user.role === "system_admin" ? [{ id: "users", label: text.users, icon: Users }, { id: "securities", label: zh ? "股票库" : "Securities", icon: Database }, { id: "parameters", label: text.parameters, icon: Settings }, { id: "sources", label: text.sources, icon: CloudDownload }, { id: "connections", label: text.connections, icon: KeyRound }, { id: "audit", label: text.audit, icon: ShieldCheck }] : [];
-  const links = [{ id: "overview" as Page, label: text.overview, icon: Gauge }, { id: "annual" as Page, label: text.annual, icon: ClipboardCheck }, { id: "portfolio" as Page, label: text.portfolio, icon: Database }, { id: "monitoring" as Page, label: text.monitoring, icon: CheckCircle2 }, { id: "reports" as Page, label: text.reports, icon: FileBarChart }, ...adminLinks];
+  const links = [...(archive?.kind==='research'?[{id:'overview' as Page,label:zh?'研究回测':'Research backtest',icon:Gauge}]:[{ id: "overview" as Page, label: text.overview, icon: Gauge }, { id: "annual" as Page, label: text.annual, icon: ClipboardCheck }, { id: "portfolio" as Page, label: text.portfolio, icon: Database }, { id: "monitoring" as Page, label: text.monitoring, icon: CheckCircle2 }, { id: "reports" as Page, label: text.reports, icon: FileBarChart }]),{id:'archives' as Page,label:zh?'档案':'Archives',icon:CalendarCheck}, ...adminLinks];
   const pageTitle = links.find((item) => item.id === page)?.label ?? text.welcome;
   return (
     <div className="app-shell">
@@ -1674,8 +1686,12 @@ function Workspace({ user, locale, onLocale, onLogout }: { user: User; locale: L
             <div className="user-chip"><strong>{user.displayName}</strong><span>{text.roles[user.role]}</span></div>
           </div>
         </header>
-        <div className="workspace-content">
-          {page === "overview" ? <Overview locale={locale} user={user} /> : page === "annual" ? <AnnualPage locale={locale} user={user} onDirtyChange={setProposalDirty} /> : page === "portfolio" ? <ApprovedPortfolioPage locale={locale} /> : page === "monitoring" ? <WorkflowModulePage locale={locale} user={user} module="monitoring" /> : page === "reports" ? <WorkflowModulePage locale={locale} user={user} module="reports" /> : page === "users" ? <UsersPage locale={locale} /> : page === "securities" ? <SecuritiesPage zh={zh} request={api} /> : page === "parameters" ? <ParametersPage locale={locale} /> : page === "sources" ? <><SourcesPage locale={locale} /><SourceFileRegistry locale={locale} /></> : page === "connections" ? <ExternalDataConnectionsPage locale={locale} /> : page === "audit" ? <AuditPage locale={locale} /> : <section className="placeholder"><h2>{pageTitle}</h2><p>{text.placeholderPage}</p></section>}
+        <div className="workspace-content" key={archive?.id??'legacy'}>
+          {archiveChanged&&<p className="readonly-note" role="status">{zh?'当前档案已切换。原档案已保存的记录保留；未提交的本地草稿不会自动带入新档案。':'The selected archive changed. Saved records remain in the original archive; unsaved local drafts are not transferred.'}</p>}
+          {archive?.kind==='annual'&&<p className="readonly-note">{zh?`业务参数使用建档快照 v${archive.configuration.parameterSnapshotVersion??'—'}；之后修改全局参数不会自动改变本档案。`:`Business parameters use the archive snapshot v${archive.configuration.parameterSnapshotVersion??'—'}; later global changes do not silently affect this archive.`}</p>}
+          {archiveError&&<p role="alert" className="form-error">{archiveError}<button className="secondary-button compact" onClick={()=>void loadArchive()}>{zh?'重新读取档案':'Reload archive'}</button></p>}
+          {archiveReady&&<div className="archive-banner"><div><strong>{zh?'当前档案：':'Current archive: '}{archive?.name??(zh?'尚未创建':'Not created')}</strong><small>{archive?`${archive.business_year} · ${archive.kind==='research'?(zh?'研究，不能交易':'Research, no trading'):(zh?'正式年度流程':'Formal annual')} · ${archive.id}`:(zh?'管理员可在“档案”中新建独立工作区。':'Administrators can create a workspace in Archives.')}</small></div><button className="secondary-button compact" onClick={()=>{if(leaveDraft())setPage('archives');}}>{zh?'查看档案':'View archives'}</button></div>}
+          {!archiveReady?<p>{zh?'正在读取当前档案…':'Loading selected archive…'}</p>:page==='archives'?<ArchivesPage zh={zh} admin={user.role==='system_admin'} request={api} selected={archive} onSelect={selectArchive}/>:archive?.kind==='research'&&['overview','annual','portfolio','monitoring','reports'].includes(page)?<ResearchPage archive={archive} zh={zh} request={api} onDirtyChange={setProposalDirty}/>:page === "overview" ? <Overview locale={locale} user={user} /> : page === "annual" ? <AnnualPage locale={locale} user={user} onDirtyChange={setProposalDirty} /> : page === "portfolio" ? <ApprovedPortfolioPage locale={locale} /> : page === "monitoring" ? <WorkflowModulePage locale={locale} user={user} module="monitoring" /> : page === "reports" ? <WorkflowModulePage locale={locale} user={user} module="reports" /> : page === "users" ? <UsersPage locale={locale} /> : page === "securities" ? <SecuritiesPage zh={zh} request={api} /> : page === "parameters" ? <ParametersPage locale={locale} /> : page === "sources" ? <><SourcesPage locale={locale} /><SourceFileRegistry locale={locale} /></> : page === "connections" ? <ExternalDataConnectionsPage locale={locale} /> : page === "audit" ? <AuditPage locale={locale} /> : <section className="placeholder"><h2>{pageTitle}</h2><p>{text.placeholderPage}</p></section>}
         </div>
       </main>
     </div>

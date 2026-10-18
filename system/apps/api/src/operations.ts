@@ -78,14 +78,15 @@ function jsonValue<T>(value: unknown): T {
 
 export async function registerOperationalRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/demo-reset/status", async (request) => {
-    requireAdmin(request);
-    return { enabled: config.ENABLE_DEMO_RESET };
+    const admin=requireAdmin(request);
+    return { enabled: config.ENABLE_DEMO_RESET&&Number((await pool.query('SELECT count(*) AS n FROM investment_archives WHERE organization_id=$1',[admin.organizationId])).rows[0]?.n)===0 };
   });
 
   app.post("/api/admin/demo-reset", async (request) => {
     const admin = requireAdmin(request);
     if (!config.ENABLE_DEMO_RESET) throw forbidden("Demo reset is disabled");
     demoResetSchema.parse(request.body);
+    if(Number((await pool.query('SELECT count(*) AS n FROM investment_archives WHERE organization_id=$1',[admin.organizationId])).rows[0]?.n)>0)throw invalidState('档案模式下全局重置已停用，以保护原始记录；请新建档案进行测试。');
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

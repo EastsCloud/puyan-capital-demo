@@ -4,6 +4,7 @@ import { z } from "zod";
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool, type DatabaseClient, type DatabasePool } from "./db.js";
+import {archiveParameters} from './archive-parameters.js';
 import { addTradingDays, calculateGroups, type GroupResult } from "./monitoring-reporting-math.js";
 
 const holdingSchema = z.object({
@@ -49,7 +50,8 @@ function dateString(value: unknown): string {
   return String(value).slice(0, 10);
 }
 
-async function effectiveParameters(client: DatabaseClient, organizationId: string): Promise<Record<string, any>> {
+async function effectiveParameters(client: DatabaseClient, organizationId: string,workflowId?:string): Promise<Record<string, any>> {
+  const snapshot=await archiveParameters(organizationId,workflowId,client);if(snapshot)return snapshot;
   const effective = await client.query(
     `SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1`,
     [organizationId],
@@ -160,7 +162,7 @@ async function verifyAcceptedRebalance(
   const plan = planResult.rows[0];
   if (!plan || dateString(snapshot.business_date) < dateString(plan.completion_due_date)) return null;
 
-  const parameters = await effectiveParameters(client, organizationId);
+  const parameters = await effectiveParameters(client, organizationId,workflowId);
   const lowerRelative = Number(parameters.rebalance?.lowerRelativeDriftPct ?? -20) / 100;
   const upperRelative = Number(parameters.rebalance?.upperRelativeDriftPct ?? 20) / 100;
   const results = calculateGroups(approved, normalizedLines, lowerRelative, upperRelative);
@@ -323,7 +325,7 @@ export async function registerMonitoringRoutes(app: FastifyInstance): Promise<vo
       if (!snapshot.rows[0]) throw invalidState("Import an effective position file before the monthly check");
       const lines = await client.query(`SELECT *, classification FROM position_snapshot_lines WHERE position_snapshot_id = $1`, [snapshot.rows[0].id]);
       const normalizedLines = lines.rows.map((line) => ({ ...line, classification: jsonValue(line.classification) }));
-      const parameters = await effectiveParameters(client, user.organizationId);
+      const parameters = await effectiveParameters(client, user.organizationId,workflowId);
       const lowerRelative = Number(parameters.rebalance?.lowerRelativeDriftPct ?? -20) / 100;
       const upperRelative = Number(parameters.rebalance?.upperRelativeDriftPct ?? 20) / 100;
       const completionDays = Number(parameters.rebalance?.completionTradingDays ?? 3);

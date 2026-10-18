@@ -13,6 +13,7 @@ import {
   type PriceSeries,
 } from "./backtest.js";
 import { pool } from "./db.js";
+import {archiveParameters} from './archive-parameters.js';
 import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { chooseCachedSeries, collectHistoricalSeries } from "./market-history.js";
 import { optimizationHistoryWeeks, SHORT_HISTORY_TECHNICAL_MINIMUM } from "./short-history.js";
@@ -41,7 +42,8 @@ function jsonValue<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
 }
 
-async function effectiveParameters(organizationId: string): Promise<Record<string, any>> {
+async function effectiveParameters(organizationId: string,workflowId?:string): Promise<Record<string, any>> {
+  const snapshot=await archiveParameters(organizationId,workflowId);if(snapshot)return snapshot;
   const effective = await pool.query("SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1", [organizationId]);
   if (effective.rows[0]) return jsonValue(effective.rows[0].parameters);
   const defaults = await pool.query("SELECT parameters FROM default_business_parameters ORDER BY version DESC LIMIT 1");
@@ -107,7 +109,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     const holdingsResult = await pool.query("SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id = $1 ORDER BY sleeve, style, ticker", [proposalId]);
     const targetsResult = await pool.query("SELECT targets FROM sleeve_target_versions WHERE id = $1", [prior.rows[0].sleeve_target_version_id]);
     const targets = jsonValue<{ equityTargets: Array<any> }>(targetsResult.rows[0].targets);
-    const parameters = await effectiveParameters(user.organizationId);
+    const parameters = await effectiveParameters(user.organizationId,workflowId);
     const backtest = parameters.backtest ?? {};
     const tolerance: BacktestTolerance = {
       betaRelative: Number(backtest.betaRelativeTolerance ?? 0.05), returnShortfall: Number(backtest.returnShortfallTolerance ?? 0.05),
@@ -262,7 +264,7 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
       const active=await client.query("SELECT id FROM optimization_jobs WHERE id=$1 AND status IN ('queued','preparing','running') FOR UPDATE",[job.id]);
       const current=await client.query("SELECT id FROM workflow_cases WHERE id=$1 AND organization_id=$2 AND current_step='optimization' AND status='active' FOR UPDATE",[workflowId,user.organizationId]);
       const latest=await client.query("SELECT id FROM proposed_portfolio_versions WHERE workflow_case_id=$1 ORDER BY version DESC LIMIT 1",[workflowId]);
-      signal.throwIfAborted();if(!active.rows[0]||!current.rows[0]||latest.rows[0]?.id!==proposalId||JSON.stringify(await effectiveParameters(user.organizationId))!==JSON.stringify(parameters))throw new Error('Optimization context changed before persistence');
+      signal.throwIfAborted();if(!active.rows[0]||!current.rows[0]||latest.rows[0]?.id!==proposalId||JSON.stringify(await effectiveParameters(user.organizationId,workflowId))!==JSON.stringify(parameters))throw new Error('Optimization context changed before persistence');
       const next = await client.query("SELECT COALESCE(max(run_number), 0)::int + 1 AS run_number FROM optimization_runs WHERE proposed_portfolio_version_id = $1", [proposalId]);
       const saved = await client.query(
         `INSERT INTO optimization_runs
@@ -302,12 +304,12 @@ export async function registerOptimizationRoutes(app: FastifyInstance): Promise<
     );
     if (!run.rows[0]) throw invalidState("Active optimization run not found");
     const constraints=jsonValue<Record<string,any>>(run.rows[0].constraints);
-    if(constraints.parameterSnapshot&&JSON.stringify(await effectiveParameters(user.organizationId))!==JSON.stringify(constraints.parameterSnapshot))throw invalidState('Parameters changed after optimization; generate a new optimization run');
+    if(constraints.parameterSnapshot&&JSON.stringify(await effectiveParameters(user.organizationId,run.rows[0].workflow_case_id))!==JSON.stringify(constraints.parameterSnapshot))throw invalidState('Parameters changed after optimization; generate a new optimization run');
     const candidates = jsonValue<any[]>(run.rows[0].candidates);
     const candidate = candidates.find((item) => item.key === input.candidateKey);
     if (!candidate) throw invalidState("Optimization candidate not found");
     const original = await pool.query("SELECT * FROM proposed_holdings WHERE proposed_portfolio_version_id = $1 ORDER BY sleeve, style, ticker", [run.rows[0].proposed_portfolio_version_id]);
-    if(constraints.contextHash){const source=(await pool.query('SELECT benchmark_manifest FROM backtest_runs WHERE id=$1',[run.rows[0].backtest_run_id])).rows[0];const target=(await pool.query('SELECT targets FROM sleeve_target_versions WHERE id=$1',[run.rows[0].sleeve_target_version_id])).rows[0];const hash=businessFingerprint({proposal:{rows:[{id:run.rows[0].proposed_portfolio_version_id,version:1}]},targets:jsonValue(target.targets),policy:await effectiveParameters(user.organizationId),sleeveBenchmarkSymbols:jsonValue<any>(source.benchmark_manifest).sleeves,holdingSymbols:original.rows});if(hash!==constraints.contextHash)throw invalidState('Portfolio targets, holdings or parameters changed; generate a new optimization run');}
+    if(constraints.contextHash){const source=(await pool.query('SELECT benchmark_manifest FROM backtest_runs WHERE id=$1',[run.rows[0].backtest_run_id])).rows[0];const target=(await pool.query('SELECT targets FROM sleeve_target_versions WHERE id=$1',[run.rows[0].sleeve_target_version_id])).rows[0];const hash=businessFingerprint({proposal:{rows:[{id:run.rows[0].proposed_portfolio_version_id,version:1}]},targets:jsonValue(target.targets),policy:await effectiveParameters(user.organizationId,run.rows[0].workflow_case_id),sleeveBenchmarkSymbols:jsonValue<any>(source.benchmark_manifest).sleeves,holdingSymbols:original.rows});if(hash!==constraints.contextHash)throw invalidState('Portfolio targets, holdings or parameters changed; generate a new optimization run');}
     const sleeveResults = (candidate.sleeveResults ?? [{
       sleeve: candidate.sleeve,
       phase: candidate.phase,

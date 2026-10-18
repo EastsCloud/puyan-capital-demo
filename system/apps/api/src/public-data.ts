@@ -353,7 +353,7 @@ export async function registerPublicDataRoutes(app: FastifyInstance): Promise<vo
     );
     if (!workflow.rows[0] || workflow.rows[0].current_step !== "annual_data") throw invalidState("Annual public data is not the current workflow step");
     const configuration = await sourceConfiguration(user.organizationId);
-    const annualPolicy = await effectiveAnnualPolicy(user.organizationId);
+    const annualPolicy = await effectiveAnnualPolicy(user.organizationId,workflowId);
     const requiredKeys = new Set(configuration.sources.filter((source) => source.is_required).map((source) => source.data_key));
     const enabledKeys = new Set(configuration.sources.filter((source) => source.enabled).map((source) => source.data_key));
     const disabledRequired = [...requiredKeys].filter((dataKey) => !enabledKeys.has(dataKey));

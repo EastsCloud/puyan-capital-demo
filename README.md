@@ -10,6 +10,8 @@ Live demo: [demo.puyancapital.com](https://demo.puyancapital.com)
 
 - Three server-enforced roles: System Administrator, Decision Committee, and Execution Team
 - State-controlled 11-step annual investment workflow
+- Named, administrator-selected annual/research archives with same-year scenarios, preserved history, independent new portfolios, and explicit copy boundaries
+- Standalone USD research backtests with real FX conversion, buy-and-hold/weekly-constant modes, durable run evidence, and short-history disclosures
 - External-data adapters with source provenance and fallback records
 - Multi-market portfolio construction, beta and drawdown controls, historical backtesting, and optimization
 - Committee voting, execution-team maker-checker review, and immutable audit events
@@ -48,6 +50,7 @@ See [Historical Data Coverage](docs/historical-data-coverage.md) for provider se
 See [Bounded Background Optimization](docs/optimizer-search.md) for search budgets, worker isolation, job recovery, validation, and model limitations.
 See [Portfolio Iterations](docs/proposal-iterations.md) for repeatable proposal editing, backtesting, historical comparisons, and task-error diagnosis.
 See [Security Maintenance and Reconciliation](docs/security-maintenance-and-reconciliation.md) for security edits, venue correction, trading lots, and percentage-based fill review.
+See [Investment Archives and Research](docs/investment-archives-and-research.md) for administrator selection, copying, parameter snapshots, direct research, model assumptions and deployment checks.
 
 ## Local setup
 

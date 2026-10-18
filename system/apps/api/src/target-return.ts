@@ -4,6 +4,7 @@ import { z } from "zod";
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
+import {archiveParameters} from './archive-parameters.js';
 
 const prepareSchema = z.object({ targetReturnRate: z.number().finite().positive().max(1) });
 
@@ -32,12 +33,12 @@ function jsonValue<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
 }
 
-async function effectiveTargetPolicy(organizationId: string) {
+async function effectiveTargetPolicy(organizationId: string,workflowId?:string) {
   const effective = await pool.query(
     "SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1",
     [organizationId],
   );
-  const parameters = effective.rows[0] ? jsonValue<Record<string, unknown>>(effective.rows[0].parameters) : {};
+  const parameters = await archiveParameters(organizationId,workflowId)??(effective.rows[0] ? jsonValue<Record<string, unknown>>(effective.rows[0].parameters) : {});
   const configured = parameters.targetReturn as typeof fallbackPolicy | undefined;
   return configured ?? fallbackPolicy;
 }
@@ -83,7 +84,7 @@ export async function registerTargetReturnRoutes(app: FastifyInstance): Promise<
         WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1`,
       [workflowId],
     );
-    const policy = await effectiveTargetPolicy(user.organizationId);
+    const policy = await effectiveTargetPolicy(user.organizationId,workflowId);
     return { context: recommendationContext(annualPackage.rows[0], policy), targetReturnVersion: latest.rows[0] ?? null };
   });
 
@@ -103,7 +104,7 @@ export async function registerTargetReturnRoutes(app: FastifyInstance): Promise<
       [workflowId],
     );
     if (!annualPackage.rows[0]) throw invalidState("An approved annual data package is required");
-    const policy = await effectiveTargetPolicy(user.organizationId);
+    const policy = await effectiveTargetPolicy(user.organizationId,workflowId);
     const context = recommendationContext(annualPackage.rows[0], policy);
     if (input.targetReturnRate < context.band.low - 1e-12 || input.targetReturnRate > context.band.high + 1e-12) {
       throw invalidState(`Target return must remain within ${(context.band.low * 100).toFixed(1)}% to ${(context.band.high * 100).toFixed(1)}%`);

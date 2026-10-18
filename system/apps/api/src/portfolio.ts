@@ -15,7 +15,7 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
       `SELECT id, code, name, base_currency, initial_principal,
               principal_effective_at, principal_set_by
          FROM portfolios
-        WHERE organization_id = $1 AND is_active = true
+        WHERE organization_id = $1 AND id=COALESCE((SELECT a.portfolio_id FROM archive_selection s JOIN investment_archives a ON a.id=s.archive_id WHERE s.organization_id=$1),(SELECT id FROM portfolios WHERE organization_id=$1 AND is_active=true ORDER BY created_at LIMIT 1))
         ORDER BY created_at LIMIT 1`,
       [user.organizationId],
     );
@@ -36,13 +36,13 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
             SET initial_principal = $2,
                 principal_effective_at = now(),
                 principal_set_by = $3
-          WHERE organization_id = $1 AND is_active = true
+          WHERE organization_id = $1 AND initial_principal IS NULL AND id=COALESCE((SELECT a.portfolio_id FROM archive_selection s JOIN investment_archives a ON a.id=s.archive_id WHERE s.organization_id=$1 AND s.archive_id=$4::uuid),(SELECT id FROM portfolios WHERE organization_id=$1 AND is_active=true AND NOT EXISTS(SELECT 1 FROM archive_selection WHERE organization_id=$1) ORDER BY created_at LIMIT 1))
           RETURNING id, code, name, base_currency, initial_principal,
                     principal_effective_at, principal_set_by`,
-        [user.organizationId, input.amount, user.id],
+        [user.organizationId, input.amount, user.id,request.headers['x-archive-id']??null],
       );
       if (!result.rows[0]) {
-        const error = new Error("active_portfolio_not_found") as Error & { statusCode: number };
+        const error = new Error("本金已生效或当前档案不可用，不能覆盖原本金；请创建独立档案。") as Error & { statusCode: number };
         error.statusCode = 409;
         throw error;
       }

@@ -69,6 +69,9 @@ export async function loadSession(request: FastifyRequest, reply: FastifyReply):
 
   request.currentUser = publicUser(row);
   request.sessionId = row.session_id;
+  // Automatic status/selection polling is not human activity. Do not let an
+  // unattended open tab keep an otherwise idle session alive indefinitely.
+  if(request.method==='GET'&&request.headers['x-isater-poll']==='1')return;
   await pool.query(
     `UPDATE sessions
         SET last_seen_at = now(),

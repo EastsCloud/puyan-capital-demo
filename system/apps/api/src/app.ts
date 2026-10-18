@@ -23,6 +23,8 @@ import { registerAuditRoutes } from "./audit.js";
 import { registerExternalDataRoutes } from "./eodhd.js";
 import { registerOperationalRoutes } from "./operations.js";
 import { registerSecurityRoutes } from "./securities.js";
+import {registerArchiveRoutes,guardArchiveRequest} from './archives.js';
+import {registerResearchRoutes} from './research.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -36,6 +38,7 @@ export async function buildApp() {
   app.decorateRequest("currentUser", null);
   app.decorateRequest("sessionId", null);
   app.addHook("onRequest", loadSession);
+  app.addHook('preHandler',guardArchiveRequest);
 
   app.addHook("preHandler", async (request) => {
     const publicPaths = new Set([
@@ -70,6 +73,8 @@ export async function buildApp() {
   await registerOperationalRoutes(app);
   await registerSecurityRoutes(app);
   await registerWorkflowRoutes(app);
+  await registerArchiveRoutes(app);
+  await registerResearchRoutes(app);
 
   if (config.SERVE_WEB) {
     const webRoot = join(dirname(fileURLToPath(import.meta.url)), "../../web/dist");

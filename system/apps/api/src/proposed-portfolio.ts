@@ -5,6 +5,7 @@ import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
 import {proposalChanges,registerProposalRevisionRoutes} from './proposal-revisions.js';
+import {archiveParameters} from './archive-parameters.js';
 
 const saveSchema = z.object({
   // Business limits below follow the effective style policy instead of a fixed 30-name cap.
@@ -28,13 +29,13 @@ function jsonValue<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
 }
 
-async function constructionPolicy(organizationId: string) {
+async function constructionPolicy(organizationId: string,workflowId?:string) {
   const effective = await pool.query(
     "SELECT parameters FROM parameter_sets WHERE organization_id = $1 AND status = 'effective' LIMIT 1",
     [organizationId],
   );
   const defaults = effective.rows[0] ? null : await pool.query("SELECT parameters FROM default_business_parameters ORDER BY version DESC LIMIT 1");
-  const parameters = jsonValue<Record<string, unknown>>((effective.rows[0] ?? defaults!.rows[0]).parameters);
+  const parameters = await archiveParameters(organizationId,workflowId)??jsonValue<Record<string, unknown>>((effective.rows[0] ?? defaults!.rows[0]).parameters);
   return (parameters.portfolioConstruction ?? {
     maxSingleSecurityWeightPct: 35, styleTickerMin: 2, styleTickerMax: 5, equityMarkets: ["US", "JP", "HK", "CN_A"],
   }) as { maxSingleSecurityWeightPct: number; styleTickerMin: number; styleTickerMax: number; equityMarkets: string[] };
@@ -70,7 +71,7 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     );
     if (!workflow.rows[0]) throw invalidState("Active workflow not found");
     const universe = await pool.query("SELECT * FROM organization_security_catalog WHERE enabled = true AND catalog_organization_id=$1 ORDER BY sleeve, style, ticker", [user.organizationId]);
-    const policy = await constructionPolicy(user.organizationId);
+    const policy = await constructionPolicy(user.organizationId,workflowId);
     const defaults: Array<{ tickerUniverseId: string; weight: number }> = [];
     for (const sleeve of ["us", "developedNonUs", "emerging"]) {
       for (const style of ["growth", "value"]) {
@@ -90,7 +91,8 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     const target = await pool.query("SELECT targets FROM sleeve_target_versions WHERE workflow_case_id = $1 ORDER BY version DESC LIMIT 1", [workflowId]);
     const equityTargets = target.rows[0] ? jsonValue<{ equityTargets?: Array<{ key: string; withinEquityWeight: number }> }>(target.rows[0].targets).equityTargets : undefined;
     const approvedSleeveWeights = equityTargets ? Object.fromEntries(equityTargets.map(item => [item.key, Number(item.withinEquityWeight)])) : undefined;
-    return { universe: universe.rows, policy, recommendedHoldings: defaults, proposedPortfolioVersion: latest.rows[0] ?? null, approvedSleeveWeights };
+    const archive=(await pool.query('SELECT configuration FROM investment_archives WHERE workflow_case_id=$1 AND organization_id=$2',[workflowId,user.organizationId])).rows[0];
+    return { universe: universe.rows, policy, recommendedHoldings: defaults, proposedPortfolioVersion: latest.rows[0] ?? null, approvedSleeveWeights,archiveSeed:archive?jsonValue<any>(archive.configuration).holdings??null:null };
   });
 
   app.post("/api/workflows/:workflowId/proposed-portfolio/versions", async (request, reply) => {
@@ -109,7 +111,7 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
       [input.holdings.map((item) => item.tickerUniverseId), user.organizationId],
     );
     if (universe.rows.length !== input.holdings.length) throw invalidState("One or more tickers are not in the approved universe");
-    const policy = await constructionPolicy(user.organizationId);
+    const policy = await constructionPolicy(user.organizationId,workflowId);
     const allowedMarkets = new Set(policy.equityMarkets);
     const byId = new Map(universe.rows.map((row) => [String(row.id), row]));
     const resolved = input.holdings.map((item) => ({ ...byId.get(item.tickerUniverseId), weight: item.weight }));

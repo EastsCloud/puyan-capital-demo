@@ -108,7 +108,7 @@ export function normalizedAnnualAllocation(parameters: Record<string, any>): Rec
   return { ...rest, annualAllocation };
 }
 
-export async function effectiveAnnualPolicy(organizationId: string): Promise<{
+export async function effectiveAnnualPolicy(organizationId: string,workflowId?:string): Promise<{
   source: "organization" | "system_default";
   parameterSet: ParameterRecord;
   policy: AnnualAllocationPolicy;
@@ -122,8 +122,10 @@ export async function effectiveAnnualPolicy(organizationId: string): Promise<{
     "SELECT version, parameters, created_at FROM default_business_parameters ORDER BY version DESC LIMIT 1",
   );
   const parameterSet = (effective.rows[0] ?? fallback!.rows[0]) as ParameterRecord;
+  let snapshotSource:'organization'|'system_default'|null=null;
+  if(workflowId){const archive=(await pool.query("SELECT configuration FROM investment_archives WHERE workflow_case_id=$1 AND organization_id=$2",[workflowId,organizationId])).rows[0];if(archive){const configuration=jsonValue<any>(archive.configuration);if(configuration.parameterSnapshot){parameterSet.parameters=configuration.parameterSnapshot;parameterSet.version=configuration.parameterSnapshotVersion??parameterSet.version;parameterSet.effective_from=configuration.parameterSnapshotEffectiveFrom??undefined;parameterSet.created_at=configuration.parameterSnapshotEffectiveFrom??undefined;snapshotSource=configuration.parameterSnapshotSource??null;}}}
   return {
-    source: effective.rows[0] ? "organization" : "system_default",
+    source: snapshotSource??(effective.rows[0] ? "organization" : "system_default"),
     parameterSet,
     policy: annualPolicyFromParameters(jsonValue(parameterSet.parameters)),
   };
