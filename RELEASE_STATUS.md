@@ -1,5 +1,14 @@
 # Isater Review Release Status
 
+## 2026-10-19: Restore safe administrator reset control
+
+- Restored **Reset current archive** on administrator Overview and Archives, including research workspaces. It explains disabled configuration rather than silently disappearing.
+- Typing `RESET ARCHIVE` and confirming the named archive creates/selects a blank linked replacement. Original and other archives, business evidence, users, credentials and audit remain intact; the destructive global erase action stays disabled in archive mode.
+- Server checks enforce the demo flag, administrator role, current selection/header, archive/workflow versions and running research/optimization-job exclusion. Repeated or stale submissions cannot reset a new selection. New formal principal requires committee activation.
+- Verification: 150 automated tests, type checks, production builds and local mocked desktop/mobile reset/archive/import/security checks passed. No production reset was performed, and no schema migration is required.
+
+Usage: [Safe Current-Archive Reset](docs/investment-archives-and-research.md#safe-current-archive-reset).
+
 ## 2026-10-18: Multiple archives and standalone research backtests
 
 - Added named annual/research archives, including multiple archives for the same year. Administrators create/copy and explicitly select the team-wide workspace; existing annual workflows are backfilled without resetting records. New archives have independent portfolios.

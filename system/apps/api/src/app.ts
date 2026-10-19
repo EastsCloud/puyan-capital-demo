@@ -25,6 +25,7 @@ import { registerOperationalRoutes } from "./operations.js";
 import { registerSecurityRoutes } from "./securities.js";
 import {registerArchiveRoutes,guardArchiveRequest} from './archives.js';
 import {registerResearchRoutes} from './research.js';
+import {registerArchiveResetRoutes} from './archive-reset.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -75,6 +76,7 @@ export async function buildApp() {
   await registerWorkflowRoutes(app);
   await registerArchiveRoutes(app);
   await registerResearchRoutes(app);
+  await registerArchiveResetRoutes(app);
 
   if (config.SERVE_WEB) {
     const webRoot = join(dirname(fileURLToPath(import.meta.url)), "../../web/dist");

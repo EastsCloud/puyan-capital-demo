@@ -33,6 +33,14 @@ Formal calculations use the business-parameter snapshot captured when the archiv
 
 Already-effective principal cannot be overwritten through the current-principal endpoint. Use another archive for a different independent scenario. Once an organization has archives, the destructive global demo-reset action is disabled; create a new archive instead of erasing the team history.
 
+## Safe current-archive reset
+
+Administrators have a **Reset current archive** control on Overview and Archives, including when the selected archive is a research workspace. It remains visible with an explanation when the deployment flag `ENABLE_DEMO_RESET` is disabled or no archive is selected. This does not restore the destructive organization-wide erase action.
+
+Expand the control, type `RESET ARCHIVE`, then confirm the dialog naming the selected archive. Reset creates a blank replacement of the same type and year, captures the currently effective business parameters, links it to the original archive, and atomically selects it for the team. The original archive and every original business record remain available in the archive list. No stock list, approval, fill, position, report or historical research run is copied into the replacement. Formal principal must be activated again by the committee.
+
+The API requires an administrator, the deployment flag, the current archive header/identifier, the displayed archive revision and workflow version. Running research/optimization jobs block reset. A stale selection, changed revision or repeated submission cannot reset another workspace. The `archive.reset` audit record links original/replacement identifiers. Users, credentials and audit records are untouched. No schema migration is needed for this restoration.
+
 ## Standalone research assumptions
 
 - Up to 50 securities; weights must be positive and total 100% of the research equity portfolio. Securities can be typed directly or chosen using catalogue hints. Supported exchanges match the existing US, Japan, Hong Kong and China A-share connectors.

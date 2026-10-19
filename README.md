@@ -11,6 +11,7 @@ Live demo: [demo.puyancapital.com](https://demo.puyancapital.com)
 - Three server-enforced roles: System Administrator, Decision Committee, and Execution Team
 - State-controlled 11-step annual investment workflow
 - Named, administrator-selected annual/research archives with same-year scenarios, preserved history, independent new portfolios, and explicit copy boundaries
+- Confirmed current-archive restart with a blank linked replacement, original evidence retention, stale-request checks and audit records
 - Standalone USD research backtests with real FX conversion, buy-and-hold/weekly-constant modes, durable run evidence, and short-history disclosures
 - External-data adapters with source provenance and fallback records
 - Multi-market portfolio construction, beta and drawdown controls, historical backtesting, and optimization

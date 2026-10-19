@@ -976,6 +976,11 @@ th {
 .demo-reset-panel p { margin: 0; color: var(--rh-muted); }
 .demo-reset-panel > div:last-of-type { display: flex; gap: 10px; }
 .demo-reset-panel > .form-message { grid-column: 1 / -1; }
+details.demo-reset-panel{display:block;margin:0 0 20px}
+details.demo-reset-panel>summary{cursor:pointer;font-weight:700;color:#9c3024}
+details.demo-reset-panel[open]>div{margin-top:14px}
+details.demo-reset-panel>div:last-of-type{flex-wrap:wrap;align-items:center}
+details.demo-reset-panel input{min-width:0;max-width:100%}
 
 @media (max-width: 900px) {
   .evidence-entry-grid, .cash-flow-form, .distribution-form { grid-template-columns: 1fr; }

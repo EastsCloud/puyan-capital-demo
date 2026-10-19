@@ -6,7 +6,7 @@ bba4c2052e6b0449f7dfcd9cedc355c5a8f168b2ef2461281abcfc3fca0dd590  ./docs/formal-
 096bbd4140eb03cc804aab5bdb79044965bafaa91972c3f026a2769fcc895ac2  ./docs/formal-e2e-test-report-2026-08-05-v1.1.md
 48470c68e7d34844e77722e0ace9c9ae837094a0cedd26d58f150a4d527eec36  ./docs/historical-data-coverage.md
 f1c7a43d6f8cf6a7979e1de1968b802eb539960498036d260138b4c887f162f6  ./docs/implementation-progress.md
-e0b1e9a4ac73e9d56fd526c5adbba2ef835ff0a8dbc5a53dd8832f3b891c75b6  ./docs/investment-archives-and-research.md
+3ce22a9b6e4e2cb3af45a1d73aa00cccda44dd8ca6848665d2c1dc12ab1d5d03  ./docs/investment-archives-and-research.md
 78f8426b5cef8db747a4da66119646fd556330de72a5b7b0331673c430dcf13e  ./docs/Isater_Three_Scenario_Full_Workflow_and_Business_Logic_v1.1_20260805.pdf
 874331124f3bd6e1148cc91dc7bcbe99c725397782c84faa50c229804d63ed35  ./docs/optimizer-search.md
 b076838473e201311e448fde34de373602077a5930b67b088ac9df0275021caa  ./docs/product-guide.md
@@ -17,10 +17,10 @@ d624c431d2b0add4801ef97d9f1988e56945f722af027dea0bad4836616ae7d4  ./docs/quick-s
 66e14c9af70b99cceeb4935d722edd4d779aaa4dcf228c32452bb27cfcba7abc  ./docs/requirements-baseline.md
 2ff5144f384778ecf04ec4a5624925f1e49971ad6326c2bd30523adda214243b  ./docs/review-accounts.md
 f0ddf29ca36e1548a1f859e41cfc1eea1390b8ca78acff0f57411f5e82353028  ./docs/security-maintenance-and-reconciliation.md
-40f8a52e20193c181c405ea63bcbb859ba680f2c218180ac0ae136cd86a26766  ./PACKAGE_VALIDATION.md
+f95e90726b4660b04cdfe6e7b09bc76c0d78d47aa779883b920d32e064403686  ./PACKAGE_VALIDATION.md
 06ea6534ffc7ee479e7b0f2c26d5bb054f7a87e7f127b6d6ccd5b9a2cee07e57  ./README_START_HERE.md
-03aceba24d55e13fd18d64f034fb2a51cdc15f843a942e5d032670f836abc700  ./README.md
-0e53ab109229c1dab94dbb946e94757dcc1c2d58364b0f25f6fce2bbc1267c5a  ./RELEASE_STATUS.md
+743259f641f2ec817517a2132daef02f0a2b9cad45dfb92adefa0b28f89e1a74  ./README.md
+78c1b2a35eaef7b4cd7a87075671e0278efe6fc8f57dc3d13af3a753ef2011b3  ./RELEASE_STATUS.md
 bbcfe59b92601b5c2fd77f728e016273779ee3f61d25b9e8ef90b2615f297fe1  ./render.yaml
 0f667d03b0bdb74e10daabc6123abf5326a22d5ab389c6368e8aa930b2f63d86  ./SECURITY.md
 b30f78d1f0c8ef49215a2347ff4826054f520ec21c9fa3308b8aa6068416f49b  ./start_app.bat
@@ -29,8 +29,9 @@ b30f78d1f0c8ef49215a2347ff4826054f520ec21c9fa3308b8aa6068416f49b  ./start_app.ba
 1127a224853f86006f7fae4b03fb6e8ae9927d0b08f0ad6241405313c09fb344  ./system/apps/api/package.json
 cf554e2f7ce972bbd5591248018a1e8a84248739c520bd0358e11a6ba960cc73  ./system/apps/api/src/admin.ts
 dc29cd16d6bc33a765f6715e6a60061df228306481033b2007ed310aa243a1af  ./system/apps/api/src/annual-policy.ts
-da3185d0adbc409ccfe9b0899d9f4078b9cbf2e2a64d3f7420e1a54525ee43b1  ./system/apps/api/src/app.ts
+18b3d8bb6101b1276a61be2f5d45b95355d8ba431176fc6eeb4c30283e1988a2  ./system/apps/api/src/app.ts
 b316235d41373a91de6cd49c6472198184c9318760f2f620d036055e685a4178  ./system/apps/api/src/archive-parameters.ts
+adabf9442b6c8572c40132bf0895357dbcb04859cca1ae2d3d394a662237dd8d  ./system/apps/api/src/archive-reset.ts
 cd8655a33d31fcbece5842b94fab9569bcf5d098dfa54f94f780e7a9831ce373  ./system/apps/api/src/archives.ts
 793aaace75905cf31d1504bca47995f76deb64b922b04b1551aaa410181e23d9  ./system/apps/api/src/audit.ts
 b5bf4cb7152ba619e5056192519e7becfc8e16e8ef9a4b1597c24e5cfe35d5dc  ./system/apps/api/src/auth.ts
@@ -73,7 +74,7 @@ b1b3fdc0db5dd173d056caae3f8a89e606d006874d9ca2e7a7ea229ac0fed8d0  ./system/apps/
 2221448b0f46d790feb18745699ddb4cb5b19c8f953185b9358fc6f4b392adbb  ./system/apps/api/src/types.ts
 524b820bbdd96b033c8c32b0aad136840f769c2b351d47f8e6a505561070fbb9  ./system/apps/api/src/workflows.ts
 65dc9c6a7c7dff49178ed4a43dcd989db1fda83fb769cd9277f26c1c5d1a712b  ./system/apps/api/test/annual-policy.test.ts
-8c70396d9cbfe25640a21b367f8068f1d555b0c319a5c0cb6a6ee48b7469deb8  ./system/apps/api/test/archives.test.ts
+154b75a6cace7eea4c0a27ec38aab3d975666fe83f8e7d8d9a4911170286861a  ./system/apps/api/test/archives.test.ts
 3b93f6c112a2d1eb41544409548b8fbe343eb1b03faa037b7e680764f36f2cef  ./system/apps/api/test/auth-session.test.ts
 3deb96943a0ca7a4044d223088fad5b4b7380239503a4d0274ba494e892c066f  ./system/apps/api/test/backtest-coverage.test.ts
 6d50161264ab284beec50149b1cbb263840ad3a6826126ac5e504d8fdec50f1f  ./system/apps/api/test/backtest-snapshot-persistence.test.ts
@@ -102,7 +103,7 @@ e690bdd01d13f2550ae5f243b1d68457d10064e79e2ad9602af97976b8109850  ./system/apps/
 9c22122c5e4e04af4ada703be270668ed3ad333f01eae31a4861d953c3c1cbf2  ./system/apps/web/src/api-error.ts
 de768bfe787930d2d118f8b91817757494fa9e8b6279f818bb7a59c14a776d5a  ./system/apps/web/src/api-session.test.ts
 6d64f181fadbd5dbfdaac0c63eb6176c0dec23c3822b8b9da78144af5024bf0c  ./system/apps/web/src/api-session.ts
-1f05600b6de8b2855dce589033296350d2a201585bdfd8813028f5445854f203  ./system/apps/web/src/App.tsx
+f2d7ad563489e457b43eafa404938e18eea28d98c6dc0d424e9b6316e01ec8b9  ./system/apps/web/src/App.tsx
 838f7f95d2859032537f0befbb1cdb46d94818e0ca00965423d063bafde52387  ./system/apps/web/src/ArchiveWorkspace.tsx
 9c09c419e6cf992cfcd650d6b53d620c8c4edfaaba595c4bb36461da60e9ee98  ./system/apps/web/src/HistoryCoveragePanel.tsx
 a6bcae9c4f04d6ff36406b2966379834342b41b08b83ba7bd0334712d6cf87f0  ./system/apps/web/src/main.tsx
@@ -115,7 +116,7 @@ caffe70a1ae74d571a80aef04d12de33667f827b2b102103f431a8e7cc11b45a  ./system/apps/
 096825eb309f3a83c307906c71ba6d38a7f5f94a7abf3c2e800c250a8aaa9b25  ./system/apps/web/src/reconciliation-display.test.ts
 1d60bf7683f2211ae66e3b1ac5e1a9178204d8d2eb9c5ef4b13c9c2836f37714  ./system/apps/web/src/reconciliation-display.ts
 8d21e462900144c04da89e1105c789c06a3bd4c9eb3f31d7b9ef7615425d5e62  ./system/apps/web/src/SecuritiesPage.tsx
-bd02af43a59c4dde67779b06ac05933362c26d32fc754cb6235752973e0db3b3  ./system/apps/web/src/styles.css
+6fa414c6e4f1403d14faddb512da16e99c41a59acd5749f181cf77e423728f89  ./system/apps/web/src/styles.css
 a7266d1c85fa6947c70073256d9a73e4c459e97b0b4ef24b5c48dcab498ef4c5  ./system/apps/web/tsconfig.app.json
 63f8a635ab43c96a202135ba7f4c46a50338620adbfbdb0767d2ed3032cadfa3  ./system/apps/web/tsconfig.json
 444243cbe61f82a61922d4e09843169e0e5c6371f79d992ca6145e1f19fcf216  ./system/apps/web/vite.config.ts
