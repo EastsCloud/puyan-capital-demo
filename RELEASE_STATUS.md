@@ -1,5 +1,14 @@
 # Isater Review Release Status
 
+## 2026-10-27 情景选股建议更新（本地开发）
+
+- 修复推荐按股票代码固定选取每组4只、未使用市场情景的问题；初始股票库为24只。
+- 新增基于真实行情接口的情景评分，牛市侧重收益与动量、熊市侧重低波动与低回撤、平衡市兼顾，并按档案快照限制数量和权重。
+- 支持查看候选数量、指标、评分、建议权重与数据排除原因，手动载入未保存草稿；保留锁定持仓、历史批准版本、回测及审批要求。
+- 162项自动测试通过（API 122、Web 19、Domain 21），类型检查和生产构建通过；桌面与390px手机视口完成本地模拟回归，无需数据库迁移。
+- 详细方法、边界和复测步骤见 [情景选股说明](docs/scenario-stock-recommendations.md)。本地自动测试及模拟浏览器回归不代表真实行情投资效果或线上验收；本次尚未部署。
+
+
 ## 2026-10-19: Restore safe administrator reset control
 
 - Restored **Reset current archive** on administrator Overview and Archives, including research workspaces. It explains disabled configuration rather than silently disappearing.

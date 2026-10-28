@@ -6,6 +6,9 @@ import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
 import {proposalChanges,registerProposalRevisionRoutes} from './proposal-revisions.js';
 import {archiveParameters} from './archive-parameters.js';
+import { buildStockRecommendation } from './stock-recommendations.js';
+import { collectHistoricalSeries, yahooSymbol } from './market-history.js';
+import { eodhdSymbol, getActiveEodhdToken } from './eodhd.js';
 
 const saveSchema = z.object({
   // Business limits below follow the effective style policy instead of a fixed 30-name cap.
@@ -72,13 +75,6 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     if (!workflow.rows[0]) throw invalidState("Active workflow not found");
     const universe = await pool.query("SELECT * FROM organization_security_catalog WHERE enabled = true AND catalog_organization_id=$1 ORDER BY sleeve, style, ticker", [user.organizationId]);
     const policy = await constructionPolicy(user.organizationId,workflowId);
-    const defaults: Array<{ tickerUniverseId: string; weight: number }> = [];
-    for (const sleeve of ["us", "developedNonUs", "emerging"]) {
-      for (const style of ["growth", "value"]) {
-        universe.rows.filter((row) => row.sleeve === sleeve && row.style === style).slice(0, 2)
-          .forEach((row) => defaults.push({ tickerUniverseId: row.id, weight: 0.25 }));
-      }
-    }
     const latest = await pool.query(
       `SELECT p.*, COALESCE(json_agg(h ORDER BY h.sleeve, h.style, h.ticker)
         FILTER (WHERE h.id IS NOT NULL), '[]') AS holdings
@@ -92,7 +88,40 @@ export async function registerProposedPortfolioRoutes(app: FastifyInstance): Pro
     const equityTargets = target.rows[0] ? jsonValue<{ equityTargets?: Array<{ key: string; withinEquityWeight: number }> }>(target.rows[0].targets).equityTargets : undefined;
     const approvedSleeveWeights = equityTargets ? Object.fromEntries(equityTargets.map(item => [item.key, Number(item.withinEquityWeight)])) : undefined;
     const archive=(await pool.query('SELECT configuration FROM investment_archives WHERE workflow_case_id=$1 AND organization_id=$2',[workflowId,user.organizationId])).rows[0];
-    return { universe: universe.rows, policy, recommendedHoldings: defaults, proposedPortfolioVersion: latest.rows[0] ?? null, approvedSleeveWeights,archiveSeed:archive?jsonValue<any>(archive.configuration).holdings??null:null };
+    return { universe: universe.rows, policy, recommendedHoldings: [], proposedPortfolioVersion: latest.rows[0] ?? null, approvedSleeveWeights,archiveSeed:archive?jsonValue<any>(archive.configuration).holdings??null:null };
+  });
+
+  app.post('/api/workflows/:workflowId/proposed-portfolio/recommendations', async (request) => {
+    const user = requirePasswordChanged(request);
+    if (!hasPermission(user.role, 'portfolio:prepare')) throw forbidden();
+    const { workflowId } = request.params as { workflowId: string };
+    const workflow = await pool.query("SELECT id FROM workflow_cases WHERE id=$1 AND organization_id=$2 AND status='active' AND current_step='proposed_portfolio'", [workflowId, user.organizationId]);
+    if (!workflow.rows[0]) throw invalidState('Proposed portfolio is not the current workflow step');
+    // Read scenario through the actual target lineage, never from the request or a different annual run.
+    const target = await pool.query(`SELECT s.id, a.id AS annual_data_package_id, a.scenario FROM sleeve_target_versions s
+      JOIN target_return_versions t ON t.id=s.target_return_version_id
+      JOIN annual_data_packages a ON a.id=t.annual_data_package_id
+      WHERE s.workflow_case_id=$1 ORDER BY s.version DESC LIMIT 1`, [workflowId]);
+    const scenario = target.rows[0]?.scenario;
+    if (scenario !== 'bull' && scenario !== 'bear' && scenario !== 'balanced') throw invalidState('Confirmed sleeve targets and a market scenario are required');
+    const policy = await constructionPolicy(user.organizationId, workflowId);
+    const universe = await pool.query('SELECT * FROM organization_security_catalog WHERE enabled=true AND catalog_organization_id=$1 ORDER BY sleeve, style, ticker', [user.organizationId]);
+    const requests = universe.rows.filter(row => policy.equityMarkets.includes(row.market)).map(row => ({
+      symbol: yahooSymbol(row.ticker, row.market), eodhdSymbol: eodhdSymbol(row.ticker, row.market), market: row.market,
+    }));
+    const collected = await collectHistoricalSeries([...new Map(requests.map(item => [item.symbol, item])).values()],
+      await getActiveEodhdToken(user.organizationId), undefined, { signal: AbortSignal.timeout(90_000) });
+    const recommendation = buildStockRecommendation({ universe: universe.rows, policy, scenario, series: collected.series });
+    const current = await pool.query(`SELECT s.id FROM sleeve_target_versions s JOIN workflow_cases w ON w.id=s.workflow_case_id
+      WHERE w.id=$1 AND w.organization_id=$2 AND w.status='active' AND w.current_step='proposed_portfolio'
+      ORDER BY s.version DESC LIMIT 1`, [workflowId, user.organizationId]);
+    if (current.rows[0]?.id !== target.rows[0].id) throw invalidState('目标或流程已变化，请刷新后重新生成建议。 / Targets or workflow changed; reload and regenerate.');
+    await writeAudit(pool, { organizationId: user.organizationId, actorUserId: user.id,
+      action: 'proposed_portfolio.recommend', entityType: 'workflow_case', entityId: workflowId,
+      outcome: recommendation.ready ? 'allowed' : 'failed', requestId: request.id, ipAddress: request.ip,
+      detail: { sleeveTargetVersionId: target.rows[0].id, annualDataPackageId: target.rows[0].annual_data_package_id,
+        recommendation, coverage: collected.coverage } });
+    return { recommendation };
   });
 
   app.post("/api/workflows/:workflowId/proposed-portfolio/versions", async (request, reply) => {

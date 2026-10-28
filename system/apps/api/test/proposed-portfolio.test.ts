@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import { ZodError } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ db: null as any }));
+const state = vi.hoisted(() => ({ db: null as any, screening: false, failPrices: false }));
 vi.mock("../src/eodhd.js", async () => ({ ...(await import("../src/eodhd-client.js")), getActiveEodhdToken: async () => "test-token" }));
 vi.mock("../src/db.js", () => {
   const query = async (sql: string, values?: unknown[]) => {
@@ -26,12 +26,26 @@ vi.mock("../src/market-history.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/market-history.js")>();
   return { ...actual,
     collectHistoricalSeries: async (requests: Array<{symbol:string}>) => {
+      if (state.screening) {
+        const lastDate = Date.parse(actual.weekKey(Date.now() / 1000)) - 3 * 86400000;
+        const series = state.failPrices ? [] : requests.map(({ symbol }, index) => {
+          let value = 100;
+          return { symbol, exchange: 'TEST', sourceName: 'Yahoo Finance chart', sourceUrl: 'https://example.com/prices', currency: 'USD',
+            points: Array.from({ length: 157 }, (_, i) => {
+              value *= 1 + .001 * (index % 4 + 1) + .005 * (index % 4 + 1) * Math.sin(i);
+              const date = new Date(lastDate - (156 - i) * 7 * 86400000).toISOString().slice(0, 10);
+              return { date, week: actual.weekKey(Date.parse(date) / 1000), value };
+            }) };
+        });
+        return { series, coverage: [] };
+      }
       const symbol=requests[0].symbol;const unavailable=symbol==="NOREAL";const count=symbol==="CRCL"?72:150;
       return { series:unavailable?[]:[{symbol,exchange:symbol==="CRCL"?"NYQ":"NMS",sourceName:"Yahoo Finance chart",points:[]}], coverage:[{symbol,providerSymbol:symbol,provider:"Yahoo Finance chart",observations:unavailable?0:count,firstDate:"2023-10-06",lastDate:"2026-10-09",status:unavailable?"unavailable":count<100?"short_history":"ready",reason:unavailable?"No price data":null,fallbackReason:"test"}] };
     },
     fetchYahooSeries: async (symbol: string) => ({symbol,exchange:symbol==="CRCL"?"NYQ":"NMS",points:[]}),
   };
 });
+
 import { registerProposedPortfolioRoutes } from "../src/proposed-portfolio.js";
 import { registerSecurityRoutes } from "../src/securities.js";
 import {registerWorkflowRoutes} from '../src/workflows.js';
@@ -188,4 +202,45 @@ describe('revision without reset and historical comparison',()=>{
   expect((await post('approval-rounds',{action:'approve_portfolio',payload:{proposedPortfolioVersionId:base}})).statusCode).toBe(409);
   const approved=await post('approval-rounds',{action:'approve_portfolio',payload:{proposedPortfolioVersionId:newId}});expect(approved.statusCode,approved.body).toBe(201);
  });
+});
+
+describe('scenario recommendation endpoint', () => {
+  const url = () => `/api/workflows/${workflowId}/proposed-portfolio/recommendations`;
+  it('requires execution permission, organization ownership and the proposal step', async () => {
+    expect((await app.inject({ method: 'POST', url: url(), headers: { 'x-test-role': 'decision_committee' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: url(), headers: { 'x-test-org': otherOrganizationId } })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'POST', url: url() })).statusCode).toBe(409);
+    await state.db.query("UPDATE workflow_cases SET current_step='proposed_portfolio' WHERE id=$1", [workflowId]);
+  });
+  it('uses the target-linked scenario, audits evidence and does not overwrite proposals', async () => {
+    state.screening = true;
+    const before = (await state.db.query('SELECT count(*) AS count FROM proposed_portfolio_versions WHERE workflow_case_id=$1', [workflowId])).rows[0].count;
+    for (const scenario of ['bull', 'bear', 'balanced']) {
+      await state.db.query('UPDATE annual_data_packages SET scenario=$1 WHERE id=(SELECT t.annual_data_package_id FROM target_return_versions t JOIN sleeve_target_versions s ON s.target_return_version_id=t.id WHERE s.workflow_case_id=$2 ORDER BY s.version DESC LIMIT 1)', [scenario, workflowId]);
+      const response = await app.inject({ method: 'POST', url: url(), payload: { scenario: 'ignored' } });
+      expect(response.statusCode, response.body).toBe(200);
+      const result = response.json().recommendation;
+      expect(result.scenario).toBe(scenario); expect(result.ready, result.issues.join(';')).toBe(true);
+      // This archive's effective policy was changed to min 2 / max 10 above.
+      expect(result.holdings).toHaveLength(12);
+      expect(result.universeCount).toBeGreaterThan(24);
+      expect(result.candidates.some((item: any) => item.ticker === 'TSLA')).toBe(true);
+    }
+    const evidence = (await state.db.query("SELECT detail FROM audit_events WHERE action='proposed_portfolio.recommend'")).rows;
+    expect(evidence).toHaveLength(3);
+    expect(evidence[0].detail.recommendation.modelVersion).toBe('scenario-stock-screen-v1');
+    expect(evidence[0].detail.sleeveTargetVersionId).toBeTruthy();
+    expect((await state.db.query('SELECT count(*) AS count FROM proposed_portfolio_versions WHERE workflow_case_id=$1', [workflowId])).rows[0].count).toBe(before);
+    expect((await state.db.query('SELECT status FROM proposed_portfolio_versions WHERE id=$1', [approvedId])).rows[0].status).toBe('approved');
+  });
+  it('returns actionable data failures without a fallback list and keeps GET free of fixed suggestions', async () => {
+    state.failPrices = true;
+    const response = await app.inject({ method: 'POST', url: url() });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().recommendation).toMatchObject({ ready: false, holdings: [] });
+    expect(response.json().recommendation.excluded.length).toBeGreaterThan(24);
+    const context = await app.inject({ method: 'GET', url: `/api/workflows/${workflowId}/proposed-portfolio/context` });
+    expect(context.json().recommendedHoldings).toEqual([]);
+    state.screening = false; state.failPrices = false;
+  });
 });

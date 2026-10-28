@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState,useRef, type FormEvent } from "react";
-import { ProposedPortfolioEditor } from "./ProposedPortfolioEditor";
+import { ProposedPortfolioEditor, type StockRecommendation } from "./ProposedPortfolioEditor";
 import {ProposalHistoryPanel,type ProposalVersion} from './ProposalHistoryPanel';
 import {reconciliationExplanation,type FillDetail} from './reconciliation-display';
 import { SecuritiesPage } from "./SecuritiesPage";
@@ -1533,7 +1533,10 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
         <details className="source-details"><summary>{zh ? "查看约束说明" : "View control basis"}</summary><p>{zh ? "每个 Sleeve 使用本市场无风险利率计算目标 Beta；若公开数据基准收益已经超过组合目标，不会把收益率硬拉回目标。最大回撤限制结合历史回撤与管理员维护的收益/回撤比率。" : "Each sleeve uses its local risk-free rate for target beta. A public-data baseline above the portfolio floor is not forced down. Drawdown limits combine observed history with the administrator-maintained return/drawdown ratio."}</p></details>
         {viewIsCurrent && user.role === "execution_team" ? <div className="approval-actions"><button className="primary-button compact" onClick={confirmSleeveTargets} disabled={busy}>{zh ? "确认 Sleeve 目标并继续" : "Confirm sleeve targets"}</button></div> : <p className="readonly-note">{zh ? "只读：该步骤由执行小组确认。" : "Read only: the execution team owns this step."}</p>}
       </section>}
-      {displayStep === "proposed_portfolio" && proposedContext && <ProposedPortfolioEditor context={proposedContext} zh={zh} canEdit={viewIsCurrent && user.role === "execution_team"} busy={busy} copyFrom={trialVersion} onSubmit={submitProposedPortfolio} onDirtyChange={reportProposalDirty} onRefresh={async () => {
+      {displayStep === "proposed_portfolio" && proposedContext && <ProposedPortfolioEditor key={workflow!.id} context={proposedContext} zh={zh} canEdit={viewIsCurrent && user.role === "execution_team"} busy={busy} copyFrom={trialVersion} onSubmit={submitProposedPortfolio} onDirtyChange={reportProposalDirty} onRecommend={async () => {
+        const result = await api<{ recommendation: StockRecommendation }>(`/api/workflows/${workflow!.id}/proposed-portfolio/recommendations`, { method: 'POST', body: '{}' });
+        return result.recommendation;
+      }} onRefresh={async () => {
         const result = await api<ProposedPortfolioContext>(`/api/workflows/${workflow!.id}/proposed-portfolio/context`);
         setProposedContext(result);
       }} />}

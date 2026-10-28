@@ -3,6 +3,16 @@ import { FileUp } from "lucide-react";
 import {compareDraftHoldings} from './proposal-changes';
 import { convertImportWeights, parsePortfolioCsv, previewRows, previewHoldings, validateHoldings, sleeves, sleeveName, type Holding, type Security, type ConstructionPolicy, type ImportRow, type PreviewRow, type Sleeve } from "./proposed-portfolio-model";
 
+export interface StockRecommendation {
+  modelVersion: string; scenario: 'bull' | 'balanced' | 'bear'; generatedAt: string;
+  universeCount: number; eligibleCount: number; ready: boolean; holdings: Holding[]; issues: string[];
+  profile: { growthWeight: number; return: number; momentum: number; volatility: number; drawdown: number };
+  excluded: Array<{ tickerUniverseId: string; ticker: string; reason: string }>;
+  candidates: Array<{ id: string; ticker: string; sleeve: string; style: string; score: number; annualizedReturn: number;
+    momentum: number; momentumWeeks: number; volatility: number; maximumDrawdown: number; observations: number;
+    firstDate: string; lastDate: string; sourceName: string; sourceUrl: string; fallbackReason: string | null }>;
+}
+
 export interface ProposalContext {
   universe: Security[]; policy: ConstructionPolicy; recommendedHoldings: Holding[];
   approvedSleeveWeights?: Partial<Record<Sleeve, number>>;
@@ -10,9 +20,10 @@ export interface ProposalContext {
   proposedPortfolioVersion: { id: string; version: number; status?: string; change_summary?:{changed:boolean}; holdings?: Array<{ ticker: string; exchange_code: string; weight: string | number;locked?:boolean }> } | null;
 }
 
-export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, onRefresh, onDirtyChange,copyFrom }: {
+export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, onRefresh, onRecommend, onDirtyChange,copyFrom }: {
   context: ProposalContext; zh: boolean; canEdit: boolean; busy: boolean;
   onSubmit: (holdings: Holding[]) => Promise<void>; onRefresh: () => Promise<void>; onDirtyChange: (dirty: boolean) => void;
+  onRecommend: () => Promise<StockRecommendation>;
   copyFrom?:{id:string;version:number;holdings:Array<{ticker:string;exchange_code:string;weight:string|number}>}|null;
 }) {
   const [draft, setDraft] = useState<Holding[] | null>(null);
@@ -24,6 +35,8 @@ export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, 
   const [filename, setFilename] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [recommending, setRecommending] = useState(false);
+  const [recommendation, setRecommendation] = useState<StockRecommendation | null>(null);
   const saved = useMemo(() => (context.proposedPortfolioVersion?.holdings ?? []).flatMap((holding) => {
     const security = context.universe.find((item) => item.ticker === holding.ticker && item.exchange_code === holding.exchange_code);
     return security ? [{ tickerUniverseId: security.id, weight: Number(holding.weight) }] : [];
@@ -59,8 +72,24 @@ export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, 
   }
   async function refreshUniverse() {
     setRefreshing(true); setMessage(null);
-    try { await onRefresh(); setMessage(zh ? "股票库已刷新。请在预览中选择新收录的股票。" : "Universe refreshed. Select newly registered securities in the preview."); }
+    try { await onRefresh(); setRecommendation(null); setMessage(zh ? "股票库已刷新。请在预览中选择新收录的股票。" : "Universe refreshed. Select newly registered securities in the preview."); }
     catch (error) { setMessage((error as Error).message); } finally { setRefreshing(false); }
+  }
+  async function generateRecommendation() {
+    setRecommending(true); setMessage(null); setRecommendation(null);
+    try { setRecommendation(await onRecommend()); }
+    catch (error) { setMessage((error as Error).message); }
+    finally { setRecommending(false); }
+  }
+  function loadRecommendation() {
+    if (!recommendation?.ready) return;
+    if ([...lockedIds].some(id => {
+      const savedHolding = saved.find(item => item.tickerUniverseId === id);
+      const next = recommendation.holdings.find(item => item.tickerUniverseId === id);
+      return !next || Math.abs(next.weight - savedHolding!.weight) > .000000005;
+    })) { setMessage(zh ? '建议会改变已锁定股票，未载入；请保留锁定持仓并手动调整草稿。' : 'Recommendation changes locked holdings and was not loaded. Preserve locks and edit the draft manually.'); return; }
+    setDraft(recommendation.holdings.map(item => ({ ...item })));
+    setMessage(zh ? '已载入情景建议到未保存草稿，仍需提交、回测及审批。' : 'Scenario recommendation loaded into an unsaved draft. Submission, backtest and approval are still required.');
   }
   function updateImport(key: string, change: Partial<ImportRow>) {
     setImports((current) => current?.map((row) => {
@@ -95,8 +124,22 @@ export function ProposedPortfolioEditor({ context, zh, canEdit, busy, onSubmit, 
     {message && <p className="form-message" role="status">{message}</p>}
     {canEdit && <>
       <div className="proposal-import"><div><FileUp size={20} /><span><strong>{zh ? "批量导入拟持仓" : "Bulk import proposed holdings"}</strong><small>{zh ? "Ticker, WeightPercent；可选 Exchange。预览中选择全股票组合权重或各市场组内权重。" : "Ticker, WeightPercent; optional Exchange. Choose whole-equity or within-sleeve percentages in the preview."}</small></span></div><label className="file-picker"><input type="file" accept=".csv,text/csv" disabled={busy || refreshing} onChange={(event) => { void chooseFile(event.target.files?.[0] ?? null); event.target.value = ""; }} /><span>{zh ? "选择 CSV 并预览" : "Choose CSV to preview"}</span></label><a className="secondary-button compact" href="/templates/proposed-portfolio-template.csv" download>{zh ? "下载模板" : "Download template"}</a></div>
-      <div className="proposal-toolbar"><button className="secondary-button compact" disabled={busy || !!imports} onClick={() => setDraft(holdings.map((holding) => ({ ...holding })))}>{zh ? "编辑拟持仓草稿" : "Edit draft"}</button><button className="secondary-button compact" disabled={busy || !!imports} onClick={() => { setDraft(context.recommendedHoldings.map((holding) => ({ ...holding }))); setMessage(zh ? "已载入系统建议到草稿，尚未保存。" : "Recommendations loaded into an unsaved draft."); }}>{zh ? "载入系统建议" : "Load recommendations"}</button><button className="secondary-button compact" disabled={busy || refreshing} onClick={refreshUniverse}>{zh ? "刷新股票库" : "Refresh universe"}</button>{dirty && <button className="secondary-button compact" disabled={busy} onClick={discard}>{zh ? "放弃草稿，恢复已保存" : "Discard draft / restore saved"}</button>}</div>
+      <div className="proposal-toolbar"><button className="secondary-button compact" disabled={busy || !!imports} onClick={() => setDraft(holdings.map((holding) => ({ ...holding })))}>{zh ? "编辑拟持仓草稿" : "Edit draft"}</button><button className="secondary-button compact" disabled={busy || refreshing || recommending} onClick={generateRecommendation}>{recommending ? (zh ? '正在检查股票库行情…' : 'Checking catalogue prices…') : (zh ? '按当前情景生成建议' : 'Generate scenario recommendation')}</button><button className="secondary-button compact" disabled={busy || !!imports || recommending || !recommendation?.ready} onClick={loadRecommendation}>{zh ? "载入系统建议" : "Load recommendations"}</button><button className="secondary-button compact" disabled={busy || refreshing || recommending} onClick={refreshUniverse}>{zh ? "刷新股票库" : "Refresh universe"}</button>{dirty && <button className="secondary-button compact" disabled={busy} onClick={discard}>{zh ? "放弃草稿，恢复已保存" : "Discard draft / restore saved"}</button>}</div>
     </>}
+    <p className="readonly-note">{zh ? `系统从本组织股票库 ${context.universe.length} 只已启用证券中筛选。牛市偏重收益与动量，熊市偏重低波动与低回撤，平衡市兼顾；成长/价值目标分别为60/40、40/60、50/50，并受单股上限约束。相同股票仍可能入选。建议需经回测验证。` : `Screening uses ${context.universe.length} enabled catalogue securities. Bull prioritizes return and momentum; bear prioritizes lower volatility and drawdown; balanced combines them. Growth/value targets are 60/40, 40/60 and 50/50, subject to weight caps. Securities may overlap. A backtest is required.`}</p>
+    {recommendation && <section className="proposal-recommendation" aria-label={zh ? '情景选股建议' : 'Scenario stock recommendation'}>
+      <h4>{({ bull: zh ? '牛市' : 'Bull', balanced: zh ? '平衡市' : 'Balanced', bear: zh ? '熊市' : 'Bear' })[recommendation.scenario]} · {zh ? `股票库 ${recommendation.universeCount} 只，可评分 ${recommendation.eligibleCount} 只，建议 ${recommendation.holdings.length} 只` : `${recommendation.universeCount} catalogue, ${recommendation.eligibleCount} scored, ${recommendation.holdings.length} selected`}</h4>
+      <p>{recommendation.modelVersion} · {new Date(recommendation.generatedAt).toLocaleString(zh ? 'zh-CN' : 'en-US')}</p>
+      <p>{zh ? `评分权重：年化收益 ${recommendation.profile.return * 100}%，26周动量 ${recommendation.profile.momentum * 100}%，低波动 ${recommendation.profile.volatility * 100}%，低回撤 ${recommendation.profile.drawdown * 100}%。同一市场、同一风格内按百分位排名，选择得分最高的股票。` : `Score weights: annual return ${recommendation.profile.return * 100}%, 26-week momentum ${recommendation.profile.momentum * 100}%, lower volatility ${recommendation.profile.volatility * 100}%, lower drawdown ${recommendation.profile.drawdown * 100}%. Highest percentile scores within each sleeve/style are selected.`}</p>
+      {recommendation.issues.map(issue => <p className="form-error" key={issue}>{issue}</p>)}
+      <details className="source-details"><summary>{zh ? '查看候选评分、入选权重及排除原因' : 'View candidate scores, weights and exclusions'}</summary>
+        <div className="table-wrap"><table><thead><tr>{(zh ? ['股票', '市场 / 风格', '得分', '年化收益', '26周动量', '年化波动', '最大回撤', '建议组内权重', '行情区间 / 来源'] : ['Security', 'Sleeve / style', 'Score', 'Annual return', '26-week momentum', 'Volatility', 'Max drawdown', 'Sleeve weight', 'History / source']).map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{recommendation.candidates.map(item => {
+          const weight = recommendation.holdings.find(holding => holding.tickerUniverseId === item.id)?.weight;
+          return <tr key={item.id}><td>{item.ticker}</td><td>{sleeveName(item.sleeve as Sleeve, zh)} / {item.style === 'growth' ? (zh ? '成长' : 'Growth') : (zh ? '价值' : 'Value')}</td><td>{item.score.toFixed(3)}</td><td>{(item.annualizedReturn * 100).toFixed(2)}%</td><td>{(item.momentum * 100).toFixed(2)}%<small>{zh ? `实际 ${item.momentumWeeks} 周` : `${item.momentumWeeks} elapsed weeks`}</small></td><td>{(item.volatility * 100).toFixed(2)}%</td><td>{(item.maximumDrawdown * 100).toFixed(2)}%</td><td>{weight ? `${(weight * 100).toFixed(2)}%` : '—'}</td><td>{item.firstDate} – {item.lastDate} ({item.observations})<small>{/^https?:\/\//.test(item.sourceUrl) ? <a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.sourceName}</a> : item.sourceName}</small>{item.fallbackReason && <small>{item.fallbackReason}</small>}</td></tr>;
+        })}</tbody></table></div>
+        {recommendation.excluded.map(item => <p key={item.tickerUniverseId}>{item.ticker}: {item.reason}</p>)}
+      </details>
+    </section>}
     {imports && canEdit && <section className="proposal-preview" aria-label={zh ? "拟持仓导入预览" : "Proposed holdings import preview"}>
       <header><h4>{zh ? `导入预览：${filename}（${imports.length}条）` : `Import preview: ${filename} (${imports.length} rows)`}</h4><p>{zh ? "尚未改变当前草稿或数据库。逐行选择使用导入值、保留原值或移除。" : "The current draft and database are unchanged. Choose imported values, keep existing values, or remove each row."}</p></header>
       <label className="proposal-weight-basis"><span>{zh ? "CSV 权重含义（请明确选择）" : "CSV weight basis (select explicitly)"}</span><select value={weightBasis} onChange={event => { setWeightBasis(event.target.value as "sleeve" | "portfolio"); setMode("replace"); setActions({}); }}><option value="sleeve">{zh ? "市场组内权重（每组100%）" : "Within-sleeve weights (100% each)"}</option><option value="portfolio">{zh ? "全股票组合权重（整表100%）" : "Whole-equity weights (100% total)"}</option></select></label>
