@@ -1,5 +1,6 @@
 import { useEffect, useState,useRef, type FormEvent } from "react";
 import type { Security } from "./proposed-portfolio-model";
+import {MarketDataPanel,type DirectorySecurity} from './MarketDataPanel';
 
 interface SecurityValidation {
   ticker: string; exchangeMatches: boolean | null; listingExchange: string; listingNote: string | null;
@@ -12,6 +13,12 @@ export function SecuritiesPage({ zh, request }: { zh: boolean; request: <T>(path
   const [editing,setEditing]=useState<Security|null>(null);const [reason,setReason]=useState('');const formRef=useRef<HTMLFormElement>(null);
   const emptyForm={ticker:'',exchangeCode:'NASDAQ',nameEn:'',nameZh:'',style:'growth',sourceName:'',sourceUrl:'',tradingLotSize:''};
   const [form, setForm] = useState(emptyForm);
+  function chooseDirectory(row:DirectorySecurity){
+    const exchange=({HK:'HKEX',SHG:'SSE',SHE:'SZSE',TSE:'TSE'} as Record<string,string>)[row.provider_exchange]??row.listing_exchange;
+    if(!['NASDAQ','NYSE','AMEX','TSE','HKEX','SSE','SZSE'].includes(exchange)){setMessage(zh?'当前系统尚不支持此上市交易所，目录记录仍已保留。':'This listing venue is not supported by the construction workflow; its directory record is retained.');return;}
+    setEditing(null);setReason('');setValidation(null);setForm({...emptyForm,ticker:row.ticker,exchangeCode:exchange,nameEn:row.name,nameZh:row.name,style:'',sourceName:'EODHD exchange directory',sourceUrl:`https://eodhd.com/financial-apis/exchanges-api-list-of-tickers-and-trading-hours`});
+    setMessage(zh?'已载入原始代码、名称和交易所。请核对中文名称并明确选择成长/价值风格后收录。':'Original symbol, name and listing loaded. Verify the Chinese name and choose a style before registering.');formRef.current?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
   function edit(security:Security){if(!security.updated_at){setMessage(zh?'请刷新以读取最新资料版本。':'Refresh to load the current data version.');return;}setEditing(security);setReason('');setValidation(null);setMessage(null);setForm({ticker:security.ticker,exchangeCode:security.exchange_code,nameEn:security.name_en,nameZh:security.name_zh,style:security.style,sourceName:security.source_name??'',sourceUrl:security.source_url,tradingLotSize:security.trading_lot_size?String(security.trading_lot_size):''});formRef.current?.scrollIntoView({behavior:'smooth',block:'start'});}
   const load = async () => setSecurities((await request<{ securities: Security[] }>("/api/securities")).securities);
   useEffect(() => { void load().catch((error: Error) => setMessage(error.message)); }, []);
@@ -33,14 +40,14 @@ export function SecuritiesPage({ zh, request }: { zh: boolean; request: <T>(path
       setMessage((error as Error).message);
     } finally { setBusy(false); }
   }
-  return <section className="annual-data-panel securities-panel"><header><div><span className="section-label">{zh ? "管理员维护" : "Administrator maintenance"}</span><h3>{zh ? "股票库" : "Securities"}</h3><p>{zh ? "补充未收录股票，请核实代码、交易所和风格。新增资料仅供本团队使用，不修改历史持仓；收录前核验真实价格与上市交易所。历史不足100周可收录；回测需检查并明确确认可用短历史。资料网址可留空，将自动提供参考链接。" : "Verify ticker, exchange and style before registration. New entries belong to your organization, preserve historical holdings and are checked against live prices and listing venues. Short histories may be registered; backtesting requires coverage checks and explicit available-history consent. Reference fields are optional."}</p></div></header>
+  return <section className="annual-data-panel securities-panel"><MarketDataPanel zh={zh} request={request} onChoose={chooseDirectory}/><header><div><span className="section-label">{zh ? "管理员维护" : "Administrator maintenance"}</span><h3>{zh ? "股票库" : "Securities"}</h3><p>{zh ? "补充未收录股票，请核实代码、交易所和风格。新增资料仅供本团队使用，不修改历史持仓；收录前核验真实价格与上市交易所。历史不足100周可收录；回测需检查并明确确认可用短历史。资料网址可留空，将自动提供参考链接。" : "Verify ticker, exchange and style before registration. New entries belong to your organization, preserve historical holdings and are checked against live prices and listing venues. Short histories may be registered; backtesting requires coverage checks and explicit available-history consent. Reference fields are optional."}</p></div></header>
     {editing&&<p className="readonly-note" role="status">{zh?`正在修改 ${editing.ticker} · ${editing.exchange_code}。修改库资料不会改写历史计划。只有同一代码、同一市场内的交易所更正可关联后续核对；换代码或跨市场需重新确认交易计划。`:`Editing ${editing.ticker} · ${editing.exchange_code}. Historical plans stay unchanged. Only a verified same-ticker/same-market venue correction can resolve future reconciliation.`}</p>}
     <form className="security-form" onSubmit={submit} ref={formRef}>
       <label><span>{zh ? "股票代码（不含交易所后缀）" : "Ticker (without exchange suffix)"}</span><input required maxLength={32} value={form.ticker} onChange={(event) => (setValidation(null), setForm({ ...form, ticker: event.target.value }))} /></label>
       <label><span>{zh ? "交易所" : "Exchange"}</span><select value={form.exchangeCode} onChange={(event) => (setValidation(null), setForm({ ...form, exchangeCode: event.target.value }))}>{["NASDAQ", "NYSE", "AMEX", "TSE", "HKEX", "SSE", "SZSE"].map((exchange) => <option key={exchange}>{exchange}</option>)}</select></label>
       <label><span>{zh ? "中文名称" : "Chinese name"}</span><input required maxLength={200} value={form.nameZh} onChange={(event) => setForm({ ...form, nameZh: event.target.value })} /></label>
       <label><span>{zh ? "英文名称" : "English name"}</span><input required maxLength={200} value={form.nameEn} onChange={(event) => setForm({ ...form, nameEn: event.target.value })} /></label>
-      <label><span>{zh ? "风格（需业务确认）" : "Style (business approval required)"}</span><select value={form.style} onChange={(event) => setForm({ ...form, style: event.target.value })}><option value="growth">{zh ? "成长" : "Growth"}</option><option value="value">{zh ? "价值" : "Value"}</option></select></label>
+      <label><span>{zh ? "风格（需业务确认）" : "Style (business approval required)"}</span><select required value={form.style} onChange={(event) => setForm({ ...form, style: event.target.value })}><option value="">{zh?"请选择风格":"Choose a style"}</option><option value="growth">{zh ? "成长" : "Growth"}</option><option value="value">{zh ? "价值" : "Value"}</option></select></label>
       <label><span>{zh ? "资料来源名称（选填）" : "Reference source (optional)"}</span><input maxLength={200} value={form.sourceName} onChange={(event) => setForm({ ...form, sourceName: event.target.value })} /></label>
       <label><span>{zh ? "资料来源网址（选填）" : "Reference URL (optional)"}</span><input type="url" maxLength={1000} value={form.sourceUrl} onChange={(event) => setForm({ ...form, sourceUrl: event.target.value })} placeholder="https://" /></label>
       <label><span>{zh?'每手股数（选填，需核实）':'Shares per trading lot (optional, verify)'}</span><input type="number" min="1" max="1000000" step="1" value={form.tradingLotSize} onChange={event=>setForm({...form,tradingLotSize:event.target.value})}/><small>{zh?'用于提示整手取整差异，不会自动放宽金额偏差标准。6861 的普通交易单位为100股。':'Used for lot-rounding review, not automatic tolerance relaxation. Verify instrument-specific rules.'}</small></label>

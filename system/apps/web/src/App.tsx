@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState,useRef, type FormEvent } from "react";
 import { ProposedPortfolioEditor, type StockRecommendation } from "./ProposedPortfolioEditor";
+import {TargetCalculationDetails,BacktestCalculationDetails,type TargetEvidence,type ReturnBetaEvidence} from './CalculationDetails';
+import {AutomaticValuationPanel} from './AutomaticValuationPanel';
 import {ProposalHistoryPanel,type ProposalVersion} from './ProposalHistoryPanel';
 import {reconciliationExplanation,type FillDetail} from './reconciliation-display';
 import { SecuritiesPage } from "./SecuritiesPage";
@@ -132,10 +134,10 @@ interface TargetReturnContext {
 }
 
 interface SleeveTargetContext {
-  context: {
+  context: Omit<TargetEvidence,'equityTargets'> & {
     targetReturnRate: number;
     decomposition: { baselineReturn: number; expectedBuffer: number; shortfallAllocatedToEquity: number };
-    equityTargets: Array<{
+    equityTargets: Array<TargetEvidence['equityTargets'][number] & {
       key: "us" | "developedNonUs" | "emerging";
       withinEquityWeight: number;
       targetReturn: number;
@@ -192,6 +194,7 @@ interface BacktestRun {
     maximumDrawdownLimit: number;
     drawdownControl: { status: "pass" | "fail" };
     hardPass: boolean;
+    calculation?: ReturnBetaEvidence;
   }> };
 }
 
@@ -1100,7 +1103,7 @@ function MonitoringPanel({ locale, user, workflow, onWorkflowChanged, readOnly =
   const money = (value: number) => new Intl.NumberFormat(locale, { style: "currency", currency: context.latestSnapshot?.lines[0]?.marketValue ? "USD" : "USD", maximumFractionDigits: 0 }).format(value);
   const dateOnly = (value: string) => value.includes("T") ? value.slice(0, 10) : value;
   const latestValue = context.curve.at(-1);
-  return <section className="monitoring-page">
+  return <section className="monitoring-page"><AutomaticValuationPanel workflowId={workflow.id} zh={zh} request={api} canEdit={!readOnly&&user.role==="execution_team"} onApplied={()=>{void load();void onWorkflowChanged();}}/>
     <ExecutionEvidencePanel locale={locale} user={user} workflow={workflow} readOnly={readOnly} />
     <div className="monitoring-summary"><div><span>{zh ? "股票市值" : "Equity value"}</span><strong>{latestValue ? money(Number(latestValue.market_value)) : "—"}</strong><small>{context.latestSnapshot ? `${dateOnly(context.latestSnapshot.business_date)} · ${context.latestSnapshot.original_filename}` : (zh ? "尚未导入" : "Not imported")}</small></div><div className="curve-panel"><EquityCurve points={context.curve} locale={locale} /></div></div>
     <div className="monitoring-grid">
@@ -1528,9 +1531,10 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
       </section>}
       {displayStep === "sleeve_targets" && sleeveContext && <section className="annual-data-panel sleeve-target-panel">
         <header><div><span className="section-label">{zh ? "股票 Sleeve 约束" : "Equity sleeve controls"}</span><h3>{zh ? `已批准组合收益率下限 ${pct(sleeveContext.context.targetReturnRate)}` : `Approved portfolio return floor ${pct(sleeveContext.context.targetReturnRate)}`}</h3></div></header>
-        <div className="sleeve-target-table table-wrap"><table><thead><tr><th>Sleeve</th><th>{zh ? "股票内部权重" : "Within-equity weight"}</th><th>{zh ? "收益率目标" : "Return target"}</th><th>Beta</th><th>{zh ? "最大回撤限制" : "Max drawdown limit"}</th></tr></thead><tbody>{sleeveContext.context.equityTargets.map((target) => <tr key={target.key}><td><strong>{sleeveLabels[target.key]}</strong></td><td>{pct(target.withinEquityWeight)}</td><td>{pct(target.targetReturn)}</td><td><strong>{target.targetBeta.toFixed(2)}</strong>{!target.betaControlActive && <small>{zh ? "仅复核" : "Review only"}</small>}</td><td>{pct(target.maximumDrawdownLimit)}</td></tr>)}</tbody></table></div>
+        <div className="sleeve-target-table table-wrap"><table><thead><tr><th>Sleeve</th><th>{zh ? "股票内部权重" : "Within-equity weight"}</th><th>{zh ? "收益率目标" : "Return target"}</th><th>{zh ? "目标Beta（CAPM）" : "Target beta (CAPM)"}</th><th>{zh ? "最大回撤限制" : "Max drawdown limit"}</th></tr></thead><tbody>{sleeveContext.context.equityTargets.map((target) => <tr key={target.key}><td><strong>{sleeveLabels[target.key]}</strong></td><td>{pct(target.withinEquityWeight)}</td><td>{pct(target.targetReturn)}</td><td><strong>{target.targetBeta.toFixed(2)}</strong>{!target.betaControlActive && <small>{zh ? "仅复核" : "Review only"}</small>}</td><td>{pct(target.maximumDrawdownLimit)}</td></tr>)}</tbody></table></div>
         <div className="model-facts"><span>{zh ? "公开数据基准收益" : "Public-data baseline"}<strong>{pct(sleeveContext.context.decomposition.baselineReturn)}</strong></span><span>{zh ? "高于目标缓冲" : "Buffer above target"}<strong>{pct(sleeveContext.context.decomposition.expectedBuffer)}</strong></span><span>{zh ? "需由股票补足" : "Shortfall assigned to equity"}<strong>{pct(sleeveContext.context.decomposition.shortfallAllocatedToEquity)}</strong></span></div>
         <details className="source-details"><summary>{zh ? "查看约束说明" : "View control basis"}</summary><p>{zh ? "每个 Sleeve 使用本市场无风险利率计算目标 Beta；若公开数据基准收益已经超过组合目标，不会把收益率硬拉回目标。最大回撤限制结合历史回撤与管理员维护的收益/回撤比率。" : "Each sleeve uses its local risk-free rate for target beta. A public-data baseline above the portfolio floor is not forced down. Drawdown limits combine observed history with the administrator-maintained return/drawdown ratio."}</p></details>
+        <TargetCalculationDetails context={sleeveContext.context} zh={zh} />
         {viewIsCurrent && user.role === "execution_team" ? <div className="approval-actions"><button className="primary-button compact" onClick={confirmSleeveTargets} disabled={busy}>{zh ? "确认 Sleeve 目标并继续" : "Confirm sleeve targets"}</button></div> : <p className="readonly-note">{zh ? "只读：该步骤由执行小组确认。" : "Read only: the execution team owns this step."}</p>}
       </section>}
       {displayStep === "proposed_portfolio" && proposedContext && <ProposedPortfolioEditor key={workflow!.id} context={proposedContext} zh={zh} canEdit={viewIsCurrent && user.role === "execution_team"} busy={busy} copyFrom={trialVersion} onSubmit={submitProposedPortfolio} onDirtyChange={reportProposalDirty} onRecommend={async () => {
@@ -1549,6 +1553,7 @@ function AnnualPage({ locale, user, onDirtyChange }: { locale: Locale; user: Use
         {!backtestContext.backtestRun ? <div className="backtest-ready"><div><strong>{zh ? "检查 Beta、收益率下限与最大回撤" : "Check beta, return floor and maximum drawdown"}</strong><span>{zh ? "收益率只设下限；高于目标不会判定失败。每个 Sleeve 使用对应市场基准。" : "Return is a floor. Each sleeve uses its own market benchmark."}</span></div></div> : <>
           <div className="table-wrap"><table><thead><tr><th>Sleeve</th><th>{zh ? "年化收益 / 目标" : "Return / target"}</th><th>Beta / {zh ? "目标" : "target"}</th><th>{zh ? "最大回撤 / 限制" : "Drawdown / limit"}</th><th>{zh ? "结果" : "Result"}</th></tr></thead><tbody>{backtestContext.backtestRun.metrics.sleeves.map((metric) => <tr key={metric.sleeve}><td><strong>{sleeveLabels[metric.sleeve]}</strong><small>{metric.observationCount} {zh ? "周" : "weeks"}</small></td><td>{pct(metric.annualizedReturn)} / {pct(metric.targetReturn)}<small className={`status-${metric.returnControl.status}`}>{metric.returnControl.status}</small></td><td>{metric.beta.toFixed(2)} / {metric.targetBeta.toFixed(2)}<small className={`status-${metric.betaControl.status}`}>{metric.betaControl.status}</small></td><td>{pct(metric.maximumDrawdown)} / {pct(metric.maximumDrawdownLimit)}<small className={`status-${metric.drawdownControl.status}`}>{metric.drawdownControl.status}</small></td><td><strong className={metric.hardPass ? "result-pass" : "result-fail"}>{metric.hardPass ? (zh ? "通过" : "Pass") : (zh ? "未通过" : "Fail")}</strong></td></tr>)}</tbody></table></div>
           <details className="source-details"><summary>{zh ? "查看数据范围与来源" : "View coverage and sources"}</summary><p>{backtestContext.backtestRun.start_date} – {backtestContext.backtestRun.end_date}；{backtestContext.backtestRun.data_manifest.provider}。{zh ? `首选源状态：${backtestContext.backtestRun.data_manifest.primaryProviderStatus}；实际来源按明细显示，历史价格已保存。` : `Primary status: ${backtestContext.backtestRun.data_manifest.primaryProviderStatus}. Actual providers are recorded per symbol; historical prices were persisted.`}</p></details>
+          {backtestContext.backtestRun.metrics.sleeves.map(metric=><BacktestCalculationDetails key={metric.sleeve} sleeve={metric.sleeve} evidence={metric.calculation} zh={zh} />)}
           {viewIsCurrent && user.role === "execution_team" && <div className="approval-actions"><button className="primary-button compact" onClick={recordBacktestOutcome} disabled={busy}>{backtestContext.backtestRun.hard_control_pass ? (zh ? "确认并进入审批" : "Confirm and open approval") : (zh ? "确认并进入优化" : "Confirm and optimize")}</button></div>}
         </>}
       </section>}

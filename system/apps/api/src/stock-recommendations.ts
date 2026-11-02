@@ -3,6 +3,7 @@ import { MIN_BACKTEST_WEEKS, weeklyCloses, yahooSymbol, type PriceSeries } from 
 
 export interface RecommendationSecurity {
   id: string; ticker: string; exchange_code: string; market: string; sleeve: string; style: string;
+  name_zh?:string;name_en?:string;
 }
 export interface RecommendationPolicy {
   maxSingleSecurityWeightPct: number; styleTickerMin: number; styleTickerMax: number; equityMarkets: string[];
@@ -31,6 +32,7 @@ export function buildStockRecommendation(input: {
     annualizedReturn: number; momentum: number; momentumWeeks: number; volatility: number; maximumDrawdown: number;
     score: number; observations: number; firstDate: string; lastDate: string;
     sourceName: string; sourceUrl: string; fallbackReason: string | null;
+    returnCalculation:{firstPrice:number;lastPrice:number;elapsedWeeks:number;cumulativeReturn:number};
   }> = [];
   const holdings: Array<{ tickerUniverseId: string; weight: number }> = [];
   const bySymbol = new Map(input.series.map(item => [item.symbol, item]));
@@ -78,7 +80,8 @@ export function buildStockRecommendation(input: {
         volatility: Math.sqrt(variance * 52),
         maximumDrawdown: maximumDrawdown(returns), score: 0, observations: common.length,
         firstDate: points.get(common[0])!.date, lastDate: points.get(common.at(-1)!)!.date,
-        sourceName: data.sourceName, sourceUrl: data.sourceUrl, fallbackReason: data.fallbackReason ?? null };
+        sourceName: data.sourceName, sourceUrl: data.sourceUrl, fallbackReason: data.fallbackReason ?? null,
+        returnCalculation:{firstPrice:prices[0],lastPrice:prices.at(-1)!,elapsedWeeks:totalWeeks,cumulativeReturn:prices.at(-1)!/prices[0]-1} };
     });
     // Percentile ranks make all four metrics comparable. Ties receive equal scores.
     const rank = (value: number, values: number[], higher: boolean) => values.length <= 1 ? .5 :

@@ -8,6 +8,7 @@ vi.mock('../src/eodhd.js',async()=>({...await import('../src/eodhd-client.js'),g
 vi.mock('../src/market-history.js',async original=>({...await original<typeof import('../src/market-history.js')>(),collectHistoricalSeries:async(requests:any[])=>{if(state.pause)await new Promise<void>(resolve=>{state.release=resolve;});return {series:state.missing?[]:requests.map((r:any)=>fixture(r.symbol)),coverage:requests.map(r=>({symbol:r.symbol,provider:'Synthetic test fixture'}))};}}));
 import {registerArchiveRoutes,guardArchiveRequest,selectedArchive} from '../src/archives.js';import {registerResearchRoutes,calculateResearch,researchSchema,researchRequests} from '../src/research.js';import {registerWorkflowRoutes} from '../src/workflows.js';import {registerPortfolioRoutes} from '../src/portfolio.js';import {archiveParameters} from '../src/archive-parameters.js';
 import {registerArchiveResetRoutes} from '../src/archive-reset.js';import {config} from '../src/config.js';
+import {hashPassword} from '../src/security.js';
 const now=new Date();const end=now.toISOString().slice(0,10);const startDate=new Date(now);startDate.setUTCDate(startDate.getUTCDate()-1050);const start=startDate.toISOString().slice(0,10);
 function fixture(symbol:string,n=140){return {symbol,currency:'USD',exchange:'test',sourceName:'Yahoo Finance chart' as const,sourceUrl:'https://example.com/synthetic',points:Array.from({length:n},(_,i)=>{const d=new Date(now);d.setUTCDate(d.getUTCDate()-(n-i)*7);return {date:d.toISOString().slice(0,10),week:d.toISOString().slice(0,10),value:symbol.includes('USD=X')?0.01+0.00001*i:100*(1+0.005*i+Math.sin(i)*0.001)};})};}
 const input=()=>({holdings:[{ticker:'AAPL',exchangeCode:'NASDAQ',weightPercent:100}],benchmark:'SPY',startDate:start,endDate:end,method:'buy_and_hold',allowShortHistory:false});
@@ -49,4 +50,42 @@ describe('non-destructive selected archive reset',()=>{
  it('blocks reset while the selected archive has an active research job',async()=>{const status=await resetStatus();const running=(await state.db.query("INSERT INTO research_backtest_runs(archive_id,archive_revision,requested_by,status,input) VALUES($1,$2,$3,'running','{}') RETURNING id",[research.id,status.archive.revision,state.user.id])).rows[0];try{const r=await reset(status);expect(r.statusCode,r.body).toBe(409);expect(r.json().error).toContain('计算任务');expect((await selectedArchive(state.user.organizationId)).id).toBe(research.id);}finally{await state.db.query("UPDATE research_backtest_runs SET status='failed',completed_at=now() WHERE id=$1",[running.id]);}});
  it('selects a blank research replacement while preserving old evidence and rejecting double submission',async()=>{const status=await resetStatus();const original=(await state.db.query('SELECT * FROM investment_archives WHERE id=$1',[research.id])).rows[0];const result=await reset(status);expect(result.statusCode,result.body).toBe(200);const replacement=result.json().archive;expect(result.json()).toMatchObject({originalArchiveId:research.id,preservedOriginal:true});expect(replacement.kind).toBe('research');expect(replacement.source_archive_id).toBe(research.id);expect(replacement.configuration.holdings).toBeUndefined();expect((await selectedArchive(state.user.organizationId)).id).toBe(replacement.id);expect((await state.db.query('SELECT count(*)::int AS n FROM research_backtest_runs WHERE archive_id=$1',[replacement.id])).rows[0].n).toBe(0);expect((await state.db.query('SELECT status,result FROM research_backtest_runs WHERE id=$1',[runId])).rows[0]).toMatchObject({status:'succeeded',result:{classification:'research_only'}});expect((await state.db.query('SELECT * FROM investment_archives WHERE id=$1',[research.id])).rows[0]).toEqual(original);expect((await reset(status)).statusCode).toBe(409);expect((await state.db.query("SELECT detail FROM audit_events WHERE action='archive.reset' LIMIT 1")).rows[0].detail).toMatchObject({originalArchiveId:research.id,replacementArchiveId:replacement.id,originalEvidencePreserved:true});});
  it('starts a blank annual replacement without deleting approved/pending records or reusing principal',async()=>{await select(legacy.id);const status=await resetStatus();const beforeRound=(await state.db.query('SELECT * FROM approval_rounds WHERE workflow_case_id=$1',[originalWorkflow])).rows;const result=await reset(status);expect(result.statusCode,result.body).toBe(200);const replacement=result.json().archive;expect(replacement.kind).toBe('annual');expect(replacement.business_year).toBe(legacy.business_year);expect((await state.db.query('SELECT current_step FROM workflow_cases WHERE id=$1',[replacement.workflow_case_id])).rows[0].current_step).toBe('annual_data');expect((await state.db.query('SELECT initial_principal FROM portfolios WHERE id=$1',[replacement.portfolio_id])).rows[0].initial_principal).toBe(null);expect((await state.db.query('SELECT current_step FROM workflow_cases WHERE id=$1',[originalWorkflow])).rows[0].current_step).toBe('monitoring');expect((await state.db.query('SELECT * FROM approval_rounds WHERE workflow_case_id=$1',[originalWorkflow])).rows).toEqual(beforeRound);expect((await state.db.query('SELECT initial_principal FROM portfolios WHERE id=$1',[originalPortfolio])).rows[0].initial_principal).toBe('1000000.00');expect((await state.db.query('SELECT id FROM users WHERE id=$1',[state.user.id])).rows).toHaveLength(1);});
+});
+
+describe('password-confirmed recoverable archive removal',()=>{
+ let removable:any;
+ const testPassword='fixture-admin-password-123';
+ const action=(id:string,revision:number,password=testPassword,verb='delete',role='system_admin',org?:string)=>app.inject({method:'POST',url:`/api/admin/archives/${id}/${verb}`,headers:headers(undefined,role,org),payload:{password,expectedRevision:revision}});
+ it('requires administrator permission and the current password',async()=>{
+  await state.db.query("UPDATE users SET password_hash=$2,status='active' WHERE id=$1",[state.user.id,await hashPassword(testPassword)]);
+  removable=await create('Remove without erasing evidence');
+  expect((await action(removable.id,removable.revision,testPassword,'delete','execution_team')).statusCode).toBe(403);
+  expect((await action(removable.id,removable.revision,'incorrect')).statusCode).toBe(400);
+  expect((await state.db.query('SELECT deleted_at FROM investment_archives WHERE id=$1',[removable.id])).rows[0].deleted_at).toBe(null);
+ });
+ it('blocks deleting the current selection and stale versions',async()=>{
+  const selected=await selectedArchive(state.user.organizationId);
+  expect((await action(selected.id,selected.revision)).statusCode).toBe(409);
+  expect((await action(removable.id,removable.revision+1)).statusCode).toBe(409);
+ });
+ it('blocks active background work and a different organization',async()=>{
+  const task=(await state.db.query("INSERT INTO research_backtest_runs(archive_id,archive_revision,requested_by,status,input) VALUES($1,1,$2,'queued','{}') RETURNING id",[removable.id,state.user.id])).rows[0];
+  expect((await action(removable.id,removable.revision)).statusCode).toBe(409);
+  await state.db.query("UPDATE research_backtest_runs SET status='failed' WHERE id=$1",[task.id]);
+  expect((await action(removable.id,removable.revision,testPassword,'delete','system_admin',state.other)).statusCode).not.toBe(200);
+ });
+ it('hides deleted archives, preserves evidence and blocks selection/copying until restored',async()=>{
+  const response=await action(removable.id,removable.revision);expect(response.statusCode,response.body).toBe(200);
+  expect(response.json().archive.deleted_at).toBeTruthy();
+  expect((await app.inject({method:'GET',url:'/api/archives'})).json().archives.some((a:any)=>a.id===removable.id)).toBe(false);
+  expect((await app.inject({method:'GET',url:'/api/archives?includeDeleted=true'})).json().archives.some((a:any)=>a.id===removable.id)).toBe(true);
+  expect((await app.inject({method:'GET',url:'/api/archives?includeDeleted=true',headers:headers(undefined,'execution_team')})).json().archives.some((a:any)=>a.id===removable.id)).toBe(false);
+  expect((await app.inject({method:'POST',url:`/api/admin/archives/${removable.id}/select`,headers:headers(),payload:{}})).statusCode).toBe(404);
+  expect((await app.inject({method:'POST',url:'/api/admin/archives',headers:headers(),payload:{name:'Invalid copy',kind:'research',businessYear:2026,sourceArchiveId:removable.id}})).statusCode).toBe(404);
+  expect((await state.db.query('SELECT id FROM research_backtest_runs WHERE archive_id=$1',[removable.id])).rows).toHaveLength(1);
+  expect((await action(removable.id,removable.revision+1,testPassword,'restore')).statusCode).toBe(200);
+  expect((await app.inject({method:'GET',url:'/api/archives'})).json().archives.some((a:any)=>a.id===removable.id)).toBe(true);
+  const audit=(await state.db.query("SELECT detail FROM audit_events WHERE entity_id=$1 AND action IN ('archive.delete','archive.restore')",[removable.id])).rows;
+  expect(audit).toHaveLength(2);expect(JSON.stringify(audit)).not.toContain(testPassword);
+ });
 });

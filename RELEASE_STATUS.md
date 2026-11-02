@@ -1,5 +1,15 @@
 # Isater Review Release Status
 
+## 2026-11-02: Calculation evidence, archive recycle bin and daily market synchronization
+
+- Exposes target CAPM inputs/adjustments and freezes actual return/beta calculation evidence with CSV exports; saved targets retain their original context. Legacy results are not reconstructed from current quotes.
+- Adds Chinese names and annual-return substitutions to recommendation rows.
+- Adds administrator-password-confirmed recoverable archive deletion/restoration without erasing business evidence.
+- Adds queued full-market directory and daily closing-price synchronization, optional daily scheduling, and quantity-based valuation previews with raw closes/FX and explicit quantity confirmation before booking.
+- Additive migrations 0028–0029; no reset. 177 automated tests, type checks and production builds passed; local mocked desktop/390px browser checks passed. Real-data entitlement checks, hosted deployment/acceptance and intraday streaming remain separate checks.
+
+Details: [Calculation, Archives and Market Data](docs/calculation-archives-market-data.md).
+
 ## 2026-10-27 情景选股建议更新（本地开发）
 
 - 修复推荐按股票代码固定选取每组4只、未使用市场情景的问题；初始股票库为24只。

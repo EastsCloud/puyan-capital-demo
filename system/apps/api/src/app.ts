@@ -26,6 +26,8 @@ import { registerSecurityRoutes } from "./securities.js";
 import {registerArchiveRoutes,guardArchiveRequest} from './archives.js';
 import {registerResearchRoutes} from './research.js';
 import {registerArchiveResetRoutes} from './archive-reset.js';
+import {registerMarketSyncRoutes} from './market-sync.js';
+import {registerAutomaticValuationRoutes} from './automatic-valuation.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -77,6 +79,8 @@ export async function buildApp() {
   await registerArchiveRoutes(app);
   await registerResearchRoutes(app);
   await registerArchiveResetRoutes(app);
+  await registerMarketSyncRoutes(app);
+  await registerAutomaticValuationRoutes(app);
 
   if (config.SERVE_WEB) {
     const webRoot = join(dirname(fileURLToPath(import.meta.url)), "../../web/dist");

@@ -16,6 +16,7 @@ import { eodhdSymbol, getActiveEodhdToken } from "./eodhd.js";
 import { collectHistoricalSeries, historyReport, yahooSymbol, type PriceSeries } from "./market-history.js";
 import { businessFingerprint, commonHistoryWeeks, shortHistoryOption, SHORT_HISTORY_TECHNICAL_MINIMUM, SHORT_HISTORY_WARNING } from "./short-history.js";
 import { weightedReturns, annualizedReturn, maximumDrawdown, calculateBeta } from './backtest-math.js';
+import {backtestCalculation} from './calculation-evidence.js';
 export { fetchEodhdWeeklySeries, fetchYahooSeries, weekKey, yahooSymbol, type PriceSeries, type PricePoint } from "./market-history.js";
 
 type SleeveKey = "us" | "developedNonUs" | "emerging";
@@ -245,6 +246,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
           beta: actualBeta, targetBeta: Number(target.targetBeta), betaControlActive: Boolean(target.betaControlActive), betaControl: betaResult,
           maximumDrawdown: actualDrawdown, maximumDrawdownLimit: Number(target.maximumDrawdownLimit), benchmarkDrawdown, drawdownControl: drawdownResult,
           hardPass: returnResult.hardPass && drawdownResult.hardPass && betaResult.hardPass,
+          calculation: backtestCalculation(securities,benchmarks,commonWeeks),
         });
       }
       const hardControlPass = sleeveMetrics.every((item) => item.hardPass);
@@ -262,7 +264,7 @@ export async function registerBacktestRoutes(app: FastifyInstance): Promise<void
           `INSERT INTO backtest_runs
             (proposed_portfolio_version_id, run_number, start_date, end_date, frequency, benchmark_manifest, data_manifest,
              metrics, hard_control_pass, review_flags, model_version, run_by, history_mode, short_history_confirmation_id)
-           VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.2.1', $10, $11, $12) RETURNING *`,
+           VALUES ($1, $2, $3, $4, 'weekly', $5, $6, $7, $8, $9, 'isater-backtest-1.3-evidence', $10, $11, $12) RETURNING *`,
           [proposal.rows[0].id, next.rows[0].run_number, startDate, endDate,
             JSON.stringify({ sleeves: sleeveBenchmarkSymbols, methodology: report.methodology }),
             JSON.stringify({ provider: [...new Set(allSeries.map((item) => item.sourceName))].join(" + "), primaryProvider: "EODHD",

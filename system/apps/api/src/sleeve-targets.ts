@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { capmTargetBeta, decomposeTargetFloor, hasPermission, type SleeveReference } from "@isater/domain";
+import { capmTargetBeta, decomposeTargetFloor, defaultCapmPolicy, hasPermission, type SleeveReference } from "@isater/domain";
 import { writeAudit } from "./audit.js";
 import { requirePasswordChanged } from "./auth.js";
 import { pool } from "./db.js";
@@ -104,6 +104,14 @@ async function buildContext(workflowId: string, organizationId: string) {
       targetBeta: capm.beta,
       betaControlActive: capm.betaControlActive,
       capm,
+      calculation: {version:'target-capm-evidence-v1',rawTargetReturn:item.targetReturn,rawMarketReturn:marketReferenceReturns[key],
+        riskFreeRate:riskFreeBySleeve[key],rawNumerator:item.targetReturn-riskFreeBySleeve[key],
+        rawDenominator:marketReferenceReturns[key]-riskFreeBySleeve[key],
+        effectiveNumerator:capm.effectiveTargetReturn-riskFreeBySleeve[key],
+        effectiveDenominator:capm.effectiveMarketReturn-riskFreeBySleeve[key],
+        policy:{...defaultCapmPolicy},marketWeights:recommendation.marketWeights,
+        referenceMethod:'scenario_monthly_arithmetic_mean_times_12',benchmark:key==='us'?'S&P 500':key==='developedNonUs'?'Nikkei 225':'China A (Shanghai Composite) + Hong Kong (Hang Seng)',
+        annualDataPackageId:row.annual_data_package_id,targetReturnVersionId:row.id},
       maximumDrawdownLimit: -Math.min(0.5, Math.max(Math.abs(historicalDrawdowns[key]), Math.abs(ratioBasedDrawdown))),
       drawdownMethod: { historicalDrawdown: historicalDrawdowns[key], returnDrawdownRatio: ratioMidpoint },
     };
@@ -129,7 +137,7 @@ export async function registerSleeveTargetRoutes(app: FastifyInstance): Promise<
        ORDER BY s.version DESC LIMIT 1`,
       [workflowId, user.organizationId],
     );
-    return { context: await buildContext(workflowId, user.organizationId), sleeveTargetVersion: latest.rows[0] ?? null };
+    return { context: latest.rows[0] ? jsonValue(latest.rows[0].targets) : await buildContext(workflowId, user.organizationId), sleeveTargetVersion: latest.rows[0] ?? null };
   });
 
   app.post("/api/workflows/:workflowId/sleeve-targets/versions", async (request, reply) => {
